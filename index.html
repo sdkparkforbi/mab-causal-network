@@ -417,7 +417,7 @@ input[type="range"]::-webkit-slider-thumb {
             <span class="slider-label">최소 논문 수</span>
             <span class="slider-value" id="paperValue">2</span>
           </div>
-          <input type="range" id="paperSlider" min="1" max="20" value="1">
+          <input type="range" id="paperSlider" min="1" max="20" value="2">
         </div>
       </div>
     </div>
@@ -511,7 +511,7 @@ const SAMPLE_DATA = [
 let rawData = [...SAMPLE_DATA];
 let activeRels = new Set(Object.keys(REL_CONFIG));
 let minFreq = 1;
-let minPapers = 1;
+let minPapers = 2;
 let simulation = null;
 
 // ============================================================
