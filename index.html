@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mAb Stability — Causal Relationship Network</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-primary: #0a0e17;
+  --bg-secondary: #111827;
+  --bg-panel: #1a2035;
+  --bg-hover: #243049;
+  --border: #2a3550;
+  --text-primary: #e8ecf4;
+  --text-secondary: #8899b4;
+  --text-muted: #556680;
+  --accent: #60a5fa;
+  --increases: #ef4444;
+  --decreases: #3b82f6;
+  --leads-to: #a855f7;
+  --inhibits: #22c55e;
+  --requires: #94a3b8;
+  --associated: #475569;
+  --node-cause: #fbbf24;
+  --node-effect: #f87171;
+  --node-balanced: #60a5fa;
+  --radius: 8px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* === LAYOUT === */
+.app {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+}
+
+/* === HEADER === */
+.header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+}
+
+.header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.header h1 span {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.header-stats {
+  display: flex;
+  gap: 20px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.header-stats .stat-val {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* === SIDEBAR === */
+.sidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-body { padding: 12px 14px; }
+
+/* === RELATIONSHIP FILTERS === */
+.rel-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.rel-filter:hover { opacity: 0.8; }
+
+.rel-filter input[type="checkbox"] {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.rel-filter input[type="checkbox"]:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.rel-filter input[type="checkbox"]:checked::after {
+  content: '✓';
+  position: absolute;
+  top: -1px;
+  left: 2px;
+  font-size: 11px;
+  color: var(--bg-primary);
+  font-weight: 700;
+}
+
+.rel-color {
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.rel-label {
+  font-size: 12px;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.rel-count {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+}
+
+/* === SLIDERS === */
+.slider-group {
+  padding: 8px 0;
+}
+
+.slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.slider-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.slider-value {
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--accent);
+  background: rgba(96, 165, 250, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+input[type="range"] {
+  width: 100%;
+  height: 4px;
+  appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-primary);
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.4);
+  cursor: pointer;
+}
+
+/* === NODE LEGEND === */
+.node-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.node-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.node-legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255,255,255,0.15);
+}
+
+/* === CSV UPLOAD === */
+.upload-area {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.upload-area:hover {
+  border-color: var(--accent);
+  color: var(--text-secondary);
+  background: rgba(96, 165, 250, 0.05);
+}
+
+.upload-area input { display: none; }
+
+/* === GRAPH AREA === */
+.graph-area {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(96,165,250,0.03) 0%, transparent 70%),
+    var(--bg-primary);
+}
+
+.graph-area svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* === TOOLTIP === */
+.tooltip {
+  position: fixed;
+  pointer-events: none;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 12px;
+  max-width: 360px;
+  box-shadow: var(--shadow);
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.15s;
+  line-height: 1.6;
+}
+
+.tooltip.visible { opacity: 1; }
+
+.tooltip-title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+.tooltip-row {
+  display: flex;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.tooltip-row .label {
+  color: var(--text-muted);
+  min-width: 55px;
+}
+
+.tooltip-rel {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* === EDGE STYLES === */
+.link { fill: none; }
+.link-associated { stroke-dasharray: 6, 4; }
+
+/* === NODE STYLES === */
+.node-circle {
+  stroke: rgba(255,255,255,0.15);
+  stroke-width: 1.5px;
+  cursor: pointer;
+  transition: stroke-width 0.15s;
+}
+
+.node-circle:hover {
+  stroke: #fff;
+  stroke-width: 2.5px;
+}
+
+.node-label {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 10px;
+  fill: var(--text-secondary);
+  pointer-events: none;
+  text-anchor: middle;
+  font-weight: 500;
+}
+
+/* === EMPTY STATE === */
+.empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+.empty-state h3 { font-size: 16px; color: var(--text-secondary); margin-bottom: 8px; }
+.empty-state p { font-size: 13px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- HEADER -->
+  <div class="header">
+    <h1><span>mAb Stability</span> — Causal Relationship Network</h1>
+    <div class="header-stats">
+      <span>Nodes <span class="stat-val" id="stat-nodes">0</span></span>
+      <span>Edges <span class="stat-val" id="stat-edges">0</span></span>
+      <span>Papers <span class="stat-val" id="stat-papers">0</span></span>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <!-- CSV Upload -->
+    <div class="panel">
+      <div class="panel-header">📂 데이터</div>
+      <div class="panel-body">
+        <div class="upload-area" id="uploadArea">
+          <input type="file" id="csvInput" accept=".csv">
+          <span id="uploadLabel">⏳ 레포 CSV 로딩 중...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Relationship Type Filters -->
+    <div class="panel">
+      <div class="panel-header">⚡ 관계 유형</div>
+      <div class="panel-body" id="relFilters"></div>
+    </div>
+
+    <!-- Frequency / Papers Sliders -->
+    <div class="panel">
+      <div class="panel-header">🎚 필터</div>
+      <div class="panel-body">
+        <div class="slider-group">
+          <div class="slider-header">
+            <span class="slider-label">최소 빈도</span>
+            <span class="slider-value" id="freqValue">1</span>
+          </div>
+          <input type="range" id="freqSlider" min="1" max="20" value="1">
+        </div>
+        <div class="slider-group">
+          <div class="slider-header">
+            <span class="slider-label">최소 논문 수</span>
+            <span class="slider-value" id="paperValue">1</span>
+          </div>
+          <input type="range" id="paperSlider" min="1" max="20" value="1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Node Legend -->
+    <div class="panel">
+      <div class="panel-header">🔵 노드 범례</div>
+      <div class="panel-body">
+        <div class="node-legend">
+          <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:var(--node-cause)"></div>
+            <span>원인 역할 (out-degree 높음)</span>
+          </div>
+          <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:var(--node-effect)"></div>
+            <span>결과 역할 (in-degree 높음)</span>
+          </div>
+          <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:var(--node-balanced)"></div>
+            <span>균형 (원인 ≈ 결과)</span>
+          </div>
+          <div class="node-legend-item" style="margin-top:4px; padding-top:8px; border-top:1px solid var(--border);">
+            <span style="color:var(--text-muted); font-size:11px;">노드 크기 = 총 언급 빈도 · 화살표 굵기 = 빈도</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GRAPH -->
+  <div class="graph-area" id="graphArea">
+    <svg id="graphSvg"></svg>
+  </div>
+</div>
+
+<!-- TOOLTIP -->
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const REL_CONFIG = {
+  increases:       { color: '#ef4444', label: '증가시킴 (increases)',       symbol: '↑' },
+  decreases:       { color: '#3b82f6', label: '감소시킴 (decreases)',       symbol: '↓' },
+  leads_to:        { color: '#a855f7', label: '야기함 (leads_to)',          symbol: '→' },
+  inhibits:        { color: '#22c55e', label: '억제함 (inhibits)',          symbol: '⊣' },
+  requires:        { color: '#94a3b8', label: '필요로 함 (requires)',       symbol: '⊂' },
+  associated_with: { color: '#475569', label: '연관됨 (associated_with)',   symbol: '~' },
+};
+
+// ============================================================
+// SAMPLE DATA (Step 2가 없어도 바로 데모 가능)
+// ============================================================
+const SAMPLE_DATA = [
+  {cause:"high concentration",effect:"increased viscosity",relationship:"increases",frequency:28,num_papers:22,main_confidence:"high",sample_evidence:"High protein concentrations required for SC delivery lead to elevated viscosity"},
+  {cause:"high concentration",effect:"aggregation",relationship:"increases",frequency:35,num_papers:27,main_confidence:"high",sample_evidence:"Concentrated mAb formulations show increased aggregation propensity"},
+  {cause:"high concentration",effect:"opalescence",relationship:"increases",frequency:12,num_papers:9,main_confidence:"medium",sample_evidence:"High concentration solutions exhibit increased opalescence due to protein-protein interactions"},
+  {cause:"SC delivery",effect:"high concentration",relationship:"requires",frequency:24,num_papers:20,main_confidence:"high",sample_evidence:"Subcutaneous administration requires concentrated antibody formulations"},
+  {cause:"aggregation",effect:"immunogenicity",relationship:"increases",frequency:18,num_papers:15,main_confidence:"high",sample_evidence:"Protein aggregates can trigger unwanted immune responses"},
+  {cause:"aggregation",effect:"reduced efficacy",relationship:"leads_to",frequency:14,num_papers:11,main_confidence:"medium",sample_evidence:"Aggregate formation leads to loss of biological activity"},
+  {cause:"increased viscosity",effect:"poor injectability",relationship:"leads_to",frequency:20,num_papers:16,main_confidence:"high",sample_evidence:"Elevated viscosity impairs syringeability for SC injection"},
+  {cause:"polysorbate 80",effect:"aggregation",relationship:"inhibits",frequency:15,num_papers:12,main_confidence:"high",sample_evidence:"Polysorbate 80 protects against interfacial stress-induced aggregation"},
+  {cause:"sucrose",effect:"thermal stability",relationship:"increases",frequency:13,num_papers:10,main_confidence:"high",sample_evidence:"Sucrose as a stabilizer increases conformational stability of mAbs"},
+  {cause:"low pH",effect:"aggregation",relationship:"increases",frequency:16,num_papers:13,main_confidence:"high",sample_evidence:"Acidic conditions promote protein unfolding and subsequent aggregation"},
+  {cause:"high temperature",effect:"aggregation",relationship:"increases",frequency:22,num_papers:18,main_confidence:"high",sample_evidence:"Thermal stress accelerates aggregate formation"},
+  {cause:"high temperature",effect:"oxidation",relationship:"increases",frequency:11,num_papers:8,main_confidence:"medium",sample_evidence:"Elevated temperatures promote methionine and tryptophan oxidation"},
+  {cause:"oxidation",effect:"reduced potency",relationship:"leads_to",frequency:9,num_papers:7,main_confidence:"medium",sample_evidence:"Oxidative modifications in CDR regions can reduce antigen binding"},
+  {cause:"deamidation",effect:"charge variants",relationship:"leads_to",frequency:10,num_papers:8,main_confidence:"high",sample_evidence:"Asparagine deamidation generates acidic charge variants"},
+  {cause:"agitation",effect:"aggregation",relationship:"increases",frequency:17,num_papers:14,main_confidence:"high",sample_evidence:"Mechanical stress from agitation induces interfacial aggregation"},
+  {cause:"polysorbate 80",effect:"agitation-induced aggregation",relationship:"inhibits",frequency:8,num_papers:6,main_confidence:"high",sample_evidence:"Surfactants mitigate aggregation caused by air-liquid interface stress"},
+  {cause:"freeze-thaw",effect:"particle formation",relationship:"increases",frequency:12,num_papers:9,main_confidence:"high",sample_evidence:"Freeze-thaw cycles generate subvisible particles in mAb formulations"},
+  {cause:"arginine",effect:"viscosity",relationship:"decreases",frequency:10,num_papers:8,main_confidence:"high",sample_evidence:"Arginine reduces viscosity of concentrated mAb solutions"},
+  {cause:"NaCl",effect:"viscosity",relationship:"decreases",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"Ionic strength modulation with NaCl can lower solution viscosity"},
+  {cause:"histidine buffer",effect:"stability",relationship:"increases",frequency:9,num_papers:7,main_confidence:"medium",sample_evidence:"Histidine buffer provides favorable stability at pH 5.5-6.5"},
+  {cause:"light exposure",effect:"oxidation",relationship:"increases",frequency:8,num_papers:6,main_confidence:"high",sample_evidence:"Photo-oxidation of tryptophan residues under light stress"},
+  {cause:"high concentration",effect:"protein-protein interaction",relationship:"increases",frequency:19,num_papers:15,main_confidence:"high",sample_evidence:"Elevated concentration increases self-association and PPI"},
+  {cause:"protein-protein interaction",effect:"increased viscosity",relationship:"leads_to",frequency:14,num_papers:11,main_confidence:"high",sample_evidence:"Reversible self-association contributes to non-Newtonian viscosity"},
+  {cause:"protein-protein interaction",effect:"opalescence",relationship:"leads_to",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"Attractive PPI manifests as solution opalescence"},
+  {cause:"particle formation",effect:"immunogenicity",relationship:"increases",frequency:11,num_papers:9,main_confidence:"medium",sample_evidence:"Subvisible particles may act as adjuvants triggering immune response"},
+  {cause:"glycosylation",effect:"stability",relationship:"associated_with",frequency:6,num_papers:5,main_confidence:"medium",sample_evidence:"Glycan profile influences thermal and colloidal stability"},
+  {cause:"Fc engineering",effect:"aggregation propensity",relationship:"associated_with",frequency:5,num_papers:4,main_confidence:"low",sample_evidence:"Fc mutations can alter aggregation behavior"},
+  {cause:"container surface",effect:"particle formation",relationship:"increases",frequency:6,num_papers:5,main_confidence:"medium",sample_evidence:"Glass and silicone oil from prefilled syringes contribute to particles"},
+  {cause:"reduced efficacy",effect:"treatment failure",relationship:"leads_to",frequency:5,num_papers:4,main_confidence:"medium",sample_evidence:"Loss of potency can lead to subtherapeutic drug levels"},
+  {cause:"immunogenicity",effect:"safety risk",relationship:"leads_to",frequency:8,num_papers:7,main_confidence:"high",sample_evidence:"Anti-drug antibodies pose safety concerns including hypersensitivity"},
+];
+
+// ============================================================
+// STATE
+// ============================================================
+let rawData = [...SAMPLE_DATA];
+let activeRels = new Set(Object.keys(REL_CONFIG));
+let minFreq = 1;
+let minPapers = 1;
+let simulation = null;
+
+// ============================================================
+// INIT
+// ============================================================
+const svg = d3.select('#graphSvg');
+const tooltip = document.getElementById('tooltip');
+let width, height;
+
+function resize() {
+  const area = document.getElementById('graphArea');
+  width = area.clientWidth;
+  height = area.clientHeight;
+  svg.attr('viewBox', [0, 0, width, height]);
+}
+resize();
+window.addEventListener('resize', () => { resize(); updateGraph(); });
+
+// Zoom
+const zoomGroup = svg.append('g');
+svg.call(d3.zoom()
+  .scaleExtent([0.2, 5])
+  .on('zoom', (e) => zoomGroup.attr('transform', e.transform))
+);
+
+// Arrow markers
+const defs = svg.append('defs');
+Object.entries(REL_CONFIG).forEach(([key, cfg]) => {
+  defs.append('marker')
+    .attr('id', `arrow-${key}`)
+    .attr('viewBox', '0 -5 10 10')
+    .attr('refX', 20)
+    .attr('refY', 0)
+    .attr('markerWidth', 8)
+    .attr('markerHeight', 8)
+    .attr('orient', 'auto')
+    .append('path')
+    .attr('d', 'M0,-4L10,0L0,4')
+    .attr('fill', cfg.color);
+});
+
+// ============================================================
+// BUILD FILTERS UI
+// ============================================================
+function buildRelFilters() {
+  const container = document.getElementById('relFilters');
+  // Count edges per relationship type
+  const counts = {};
+  rawData.forEach(d => { counts[d.relationship] = (counts[d.relationship] || 0) + 1; });
+
+  container.innerHTML = '';
+  Object.entries(REL_CONFIG).forEach(([key, cfg]) => {
+    const count = counts[key] || 0;
+    const div = document.createElement('label');
+    div.className = 'rel-filter';
+    div.innerHTML = `
+      <input type="checkbox" data-rel="${key}" ${activeRels.has(key) ? 'checked' : ''}>
+      <div class="rel-color" style="background:${cfg.color}; ${key === 'associated_with' ? 'background:repeating-linear-gradient(90deg,'+cfg.color+' 0,'+cfg.color+' 4px,transparent 4px,transparent 7px)' : ''}"></div>
+      <span class="rel-label">${cfg.label}</span>
+      <span class="rel-count">${count}</span>
+    `;
+    div.querySelector('input').addEventListener('change', (e) => {
+      if (e.target.checked) activeRels.add(key);
+      else activeRels.delete(key);
+      updateGraph();
+    });
+    container.appendChild(div);
+  });
+}
+
+// Sliders
+document.getElementById('freqSlider').addEventListener('input', (e) => {
+  minFreq = +e.target.value;
+  document.getElementById('freqValue').textContent = `≥ ${minFreq}`;
+  updateGraph();
+});
+
+document.getElementById('paperSlider').addEventListener('input', (e) => {
+  minPapers = +e.target.value;
+  document.getElementById('paperValue').textContent = `≥ ${minPapers}`;
+  updateGraph();
+});
+
+// CSV Upload
+document.getElementById('uploadArea').addEventListener('click', () => {
+  document.getElementById('csvInput').click();
+});
+
+document.getElementById('csvInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    const text = evt.target.result;
+    rawData = parseCSV(text);
+    // Update slider max values
+    const maxF = Math.max(...rawData.map(d => d.frequency), 20);
+    const maxP = Math.max(...rawData.map(d => d.num_papers), 20);
+    document.getElementById('freqSlider').max = maxF;
+    document.getElementById('paperSlider').max = maxP;
+    buildRelFilters();
+    updateGraph();
+    document.getElementById('uploadArea').innerHTML =
+      `✅ ${file.name} 로드 완료<br><small style="color:var(--text-muted)">${rawData.length}개 엣지</small>`;
+  };
+  reader.readAsText(file);
+});
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+  return lines.slice(1).map(line => {
+    // Handle quoted fields with commas
+    const values = [];
+    let current = '';
+    let inQuotes = false;
+    for (const char of line) {
+      if (char === '"') { inQuotes = !inQuotes; }
+      else if (char === ',' && !inQuotes) { values.push(current.trim()); current = ''; }
+      else { current += char; }
+    }
+    values.push(current.trim());
+
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = values[i] || ''; });
+    obj.frequency = parseInt(obj.frequency) || 1;
+    obj.num_papers = parseInt(obj.num_papers) || 1;
+    return obj;
+  }).filter(d => d.cause && d.effect);
+}
+
+// ============================================================
+// GRAPH UPDATE
+// ============================================================
+function updateGraph() {
+  // Filter data
+  const filtered = rawData.filter(d =>
+    activeRels.has(d.relationship) &&
+    d.frequency >= minFreq &&
+    d.num_papers >= minPapers
+  );
+
+  // Build nodes and links
+  const nodeMap = new Map();
+  const links = [];
+
+  filtered.forEach(d => {
+    if (!nodeMap.has(d.cause)) nodeMap.set(d.cause, { id: d.cause, inW: 0, outW: 0, total: 0 });
+    if (!nodeMap.has(d.effect)) nodeMap.set(d.effect, { id: d.effect, inW: 0, outW: 0, total: 0 });
+
+    nodeMap.get(d.cause).outW += d.frequency;
+    nodeMap.get(d.cause).total += d.frequency;
+    nodeMap.get(d.effect).inW += d.frequency;
+    nodeMap.get(d.effect).total += d.frequency;
+
+    links.push({
+      source: d.cause,
+      target: d.effect,
+      relationship: d.relationship,
+      frequency: d.frequency,
+      num_papers: d.num_papers,
+      confidence: d.main_confidence || 'medium',
+      evidence: d.sample_evidence || '',
+    });
+  });
+
+  const nodes = Array.from(nodeMap.values());
+
+  // Update stats
+  const allPapers = new Set();
+  filtered.forEach(d => {
+    if (d.pmid_list) d.pmid_list.split(';').forEach(p => allPapers.add(p));
+    else allPapers.add(`${d.cause}-${d.effect}`);
+  });
+  document.getElementById('stat-nodes').textContent = nodes.length;
+  document.getElementById('stat-edges').textContent = links.length;
+  document.getElementById('stat-papers').textContent = allPapers.size;
+
+  // Scales
+  const maxFreq = Math.max(...links.map(l => l.frequency), 1);
+  const maxTotal = Math.max(...nodes.map(n => n.total), 1);
+  const rScale = d3.scaleSqrt().domain([1, maxTotal]).range([6, 30]);
+  const wScale = d3.scaleLinear().domain([1, maxFreq]).range([1, 7]);
+
+  // Clear
+  zoomGroup.selectAll('*').remove();
+
+  if (nodes.length === 0) {
+    zoomGroup.append('text')
+      .attr('x', width / 2).attr('y', height / 2)
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#556680')
+      .attr('font-size', 14)
+      .text('필터 조건에 맞는 데이터가 없습니다. 조건을 완화해보세요.');
+    return;
+  }
+
+  // Simulation
+  if (simulation) simulation.stop();
+  simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(120))
+    .force('charge', d3.forceManyBody().strength(-400))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collision', d3.forceCollide().radius(d => rScale(d.total) + 10));
+
+  // Links
+  const link = zoomGroup.append('g')
+    .selectAll('path')
+    .data(links)
+    .join('path')
+    .attr('class', d => `link ${d.relationship === 'associated_with' ? 'link-associated' : ''}`)
+    .attr('stroke', d => REL_CONFIG[d.relationship]?.color || '#475569')
+    .attr('stroke-width', d => wScale(d.frequency))
+    .attr('stroke-opacity', 0.6)
+    .attr('marker-end', d => `url(#arrow-${d.relationship})`)
+    .on('mouseover', (event, d) => showEdgeTooltip(event, d))
+    .on('mousemove', (event) => moveTooltip(event))
+    .on('mouseout', hideTooltip);
+
+  // Nodes
+  const node = zoomGroup.append('g')
+    .selectAll('g')
+    .data(nodes)
+    .join('g')
+    .call(d3.drag()
+      .on('start', dragStart)
+      .on('drag', dragging)
+      .on('end', dragEnd));
+
+  node.append('circle')
+    .attr('class', 'node-circle')
+    .attr('r', d => rScale(d.total))
+    .attr('fill', d => {
+      if (d.outW > d.inW * 1.3) return 'var(--node-cause)';
+      if (d.inW > d.outW * 1.3) return 'var(--node-effect)';
+      return 'var(--node-balanced)';
+    })
+    .attr('fill-opacity', 0.85)
+    .on('mouseover', (event, d) => showNodeTooltip(event, d))
+    .on('mousemove', (event) => moveTooltip(event))
+    .on('mouseout', hideTooltip);
+
+  node.append('text')
+    .attr('class', 'node-label')
+    .attr('dy', d => rScale(d.total) + 14)
+    .text(d => d.id.length > 25 ? d.id.slice(0, 23) + '…' : d.id);
+
+  // Tick
+  simulation.on('tick', () => {
+    link.attr('d', d => {
+      const dx = d.target.x - d.source.x;
+      const dy = d.target.y - d.source.y;
+      const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
+      return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+    });
+
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+
+  // Drag handlers
+  function dragStart(event, d) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x; d.fy = d.y;
+  }
+  function dragging(event, d) { d.fx = event.x; d.fy = event.y; }
+  function dragEnd(event, d) {
+    if (!event.active) simulation.alphaTarget(0);
+    d.fx = null; d.fy = null;
+  }
+}
+
+// ============================================================
+// TOOLTIPS
+// ============================================================
+function showNodeTooltip(event, d) {
+  const role = d.outW > d.inW * 1.3 ? '원인(Cause)' : d.inW > d.outW * 1.3 ? '결과(Effect)' : '균형';
+  tooltip.innerHTML = `
+    <div class="tooltip-title">${d.id}</div>
+    <div class="tooltip-row"><span class="label">역할</span> ${role}</div>
+    <div class="tooltip-row"><span class="label">총 언급</span> ${d.total}회</div>
+    <div class="tooltip-row"><span class="label">원인↗</span> ${d.outW}회</div>
+    <div class="tooltip-row"><span class="label">결과↙</span> ${d.inW}회</div>
+  `;
+  tooltip.classList.add('visible');
+}
+
+function showEdgeTooltip(event, d) {
+  const cfg = REL_CONFIG[d.relationship] || {};
+  tooltip.innerHTML = `
+    <div class="tooltip-title">${d.source.id || d.source} ${cfg.symbol || '→'} ${d.target.id || d.target}</div>
+    <div class="tooltip-row"><span class="label">관계</span>
+      <span class="tooltip-rel" style="background:${cfg.color}22; color:${cfg.color}">${cfg.label || d.relationship}</span>
+    </div>
+    <div class="tooltip-row"><span class="label">빈도</span> ${d.frequency}회</div>
+    <div class="tooltip-row"><span class="label">논문</span> ${d.num_papers}편</div>
+    <div class="tooltip-row"><span class="label">신뢰도</span> ${d.confidence}</div>
+    ${d.evidence ? `<div class="tooltip-row" style="margin-top:4px; padding-top:4px; border-top:1px solid var(--border);"><span style="color:var(--text-muted); font-size:11px; font-style:italic;">"${d.evidence.slice(0, 120)}"</span></div>` : ''}
+  `;
+  tooltip.classList.add('visible');
+}
+
+function moveTooltip(event) {
+  const x = Math.min(event.clientX + 16, window.innerWidth - 380);
+  const y = Math.min(event.clientY + 16, window.innerHeight - 200);
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+
+function hideTooltip() { tooltip.classList.remove('visible'); }
+
+// ============================================================
+// INIT — 레포 CSV 자동 로드, 실패 시 샘플 데이터 사용
+// ============================================================
+const CSV_URL = 'step2c_causal_edges_summary.csv'; // 같은 레포 상대경로
+
+async function init() {
+  try {
+    const response = await fetch(CSV_URL);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const text = await response.text();
+    const parsed = parseCSV(text);
+
+    if (parsed.length > 0) {
+      rawData = parsed;
+      document.getElementById('uploadLabel').innerHTML =
+        `✅ 레포 CSV 로드 완료<br><small style="color:var(--text-muted)">${rawData.length}개 엣지 (다른 CSV 업로드 가능)</small>`;
+    } else {
+      throw new Error('파싱 결과 없음');
+    }
+  } catch (e) {
+    console.log('레포 CSV 로드 실패, 샘플 데이터 사용:', e.message);
+    rawData = [...SAMPLE_DATA];
+    document.getElementById('uploadLabel').innerHTML =
+      `📊 샘플 데이터 사용 중<br><small style="color:var(--text-muted)">CSV 업로드로 교체 가능</small>`;
+  }
+
+  // 슬라이더 범위 업데이트
+  const maxF = Math.max(...rawData.map(d => d.frequency), 20);
+  const maxP = Math.max(...rawData.map(d => d.num_papers), 20);
+  document.getElementById('freqSlider').max = maxF;
+  document.getElementById('paperSlider').max = maxP;
+
+  buildRelFilters();
+  updateGraph();
+}
+
+init();
+</script>
+</body>
+</html>
