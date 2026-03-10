@@ -709,13 +709,28 @@ function updateGraph() {
     return;
   }
 
-  // Simulation
+  // Simulation — 레이아웃을 미리 계산하고 정지 상태로 렌더링
   if (simulation) simulation.stop();
   simulation = d3.forceSimulation(nodes)
     .force('link', d3.forceLink(links).id(d => d.id).distance(120))
     .force('charge', d3.forceManyBody().strength(-400))
     .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide().radius(d => rScale(d.total) + 10));
+    .force('collision', d3.forceCollide().radius(d => rScale(d.total) + 10))
+    .stop(); // 바로 정지
+
+  // 레이아웃 미리 계산 (애니메이션 없이)
+  for (let i = 0; i < 300; i++) simulation.tick();
+
+  // 위치 업데이트 함수
+  function updatePositions() {
+    link.attr('d', d => {
+      const dx = d.target.x - d.source.x;
+      const dy = d.target.y - d.source.y;
+      const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
+      return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+    });
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  }
 
   // Links
   const link = zoomGroup.append('g')
@@ -759,26 +774,19 @@ function updateGraph() {
     .attr('dy', d => rScale(d.total) + 14)
     .text(d => d.id.length > 25 ? d.id.slice(0, 23) + '…' : d.id);
 
-  // Tick
-  simulation.on('tick', () => {
-    link.attr('d', d => {
-      const dx = d.target.x - d.source.x;
-      const dy = d.target.y - d.source.y;
-      const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
-      return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
-    });
+  // 정적 렌더링
+  updatePositions();
 
-    node.attr('transform', d => `translate(${d.x},${d.y})`);
-  });
+  // 드래그 시에만 시뮬레이션 활성화
+  simulation.on('tick', updatePositions);
 
-  // Drag handlers
   function dragStart(event, d) {
-    if (!event.active) simulation.alphaTarget(0.3).restart();
+    simulation.alphaTarget(0.3).restart();
     d.fx = d.x; d.fy = d.y;
   }
   function dragging(event, d) { d.fx = event.x; d.fy = event.y; }
   function dragEnd(event, d) {
-    if (!event.active) simulation.alphaTarget(0);
+    simulation.alphaTarget(0);
     d.fx = null; d.fy = null;
   }
 }
@@ -825,7 +833,7 @@ function hideTooltip() { tooltip.classList.remove('visible'); }
 // ============================================================
 // INIT — 레포 CSV 자동 로드, 실패 시 샘플 데이터 사용
 // ============================================================
-const CSV_URL = 'step2c_causal_edges_summary.csv'; // 같은 레포 상대경로
+const CSV_URL = 'https://raw.githubusercontent.com/STARG-LEE/mab-causal-network/main/step2c_causal_edges_summary.csv';
 
 async function init() {
   try {
