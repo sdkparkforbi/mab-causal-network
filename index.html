@@ -709,28 +709,16 @@ function updateGraph() {
     return;
   }
 
-  // Simulation — 레이아웃을 미리 계산하고 정지 상태로 렌더링
+  // 레이아웃 계산 (시뮬레이션 없이, 위치만 계산)
   if (simulation) simulation.stop();
   simulation = d3.forceSimulation(nodes)
     .force('link', d3.forceLink(links).id(d => d.id).distance(120))
     .force('charge', d3.forceManyBody().strength(-400))
     .force('center', d3.forceCenter(width / 2, height / 2))
     .force('collision', d3.forceCollide().radius(d => rScale(d.total) + 10))
-    .stop(); // 바로 정지
-
-  // 레이아웃 미리 계산 (애니메이션 없이)
+    .stop();
   for (let i = 0; i < 300; i++) simulation.tick();
-
-  // 위치 업데이트 함수
-  function updatePositions() {
-    link.attr('d', d => {
-      const dx = d.target.x - d.source.x;
-      const dy = d.target.y - d.source.y;
-      const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
-      return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
-    });
-    node.attr('transform', d => `translate(${d.x},${d.y})`);
-  }
+  simulation = null; // 시뮬레이션 완전 해제
 
   // Links
   const link = zoomGroup.append('g')
@@ -742,6 +730,12 @@ function updateGraph() {
     .attr('stroke-width', d => wScale(d.frequency))
     .attr('stroke-opacity', 0.6)
     .attr('marker-end', d => `url(#arrow-${d.relationship})`)
+    .attr('d', d => {
+      const dx = d.target.x - d.source.x;
+      const dy = d.target.y - d.source.y;
+      const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
+      return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+    })
     .on('mouseover', (event, d) => showEdgeTooltip(event, d))
     .on('mousemove', (event) => moveTooltip(event))
     .on('mouseout', hideTooltip);
@@ -751,10 +745,19 @@ function updateGraph() {
     .selectAll('g')
     .data(nodes)
     .join('g')
+    .attr('transform', d => `translate(${d.x},${d.y})`)
     .call(d3.drag()
-      .on('start', dragStart)
-      .on('drag', dragging)
-      .on('end', dragEnd));
+      .on('drag', (event, d) => {
+        d.x = event.x; d.y = event.y;
+        d3.select(event.sourceEvent.target.parentNode)
+          .attr('transform', `translate(${d.x},${d.y})`);
+        link.attr('d', l => {
+          const dx = l.target.x - l.source.x;
+          const dy = l.target.y - l.source.y;
+          const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
+          return `M${l.source.x},${l.source.y}A${dr},${dr} 0 0,1 ${l.target.x},${l.target.y}`;
+        });
+      }));
 
   node.append('circle')
     .attr('class', 'node-circle')
@@ -773,22 +776,6 @@ function updateGraph() {
     .attr('class', 'node-label')
     .attr('dy', d => rScale(d.total) + 14)
     .text(d => d.id.length > 25 ? d.id.slice(0, 23) + '…' : d.id);
-
-  // 정적 렌더링
-  updatePositions();
-
-  // 드래그 시에만 시뮬레이션 활성화
-  simulation.on('tick', updatePositions);
-
-  function dragStart(event, d) {
-    simulation.alphaTarget(0.3).restart();
-    d.fx = d.x; d.fy = d.y;
-  }
-  function dragging(event, d) { d.fx = event.x; d.fy = event.y; }
-  function dragEnd(event, d) {
-    simulation.alphaTarget(0);
-    d.fx = null; d.fy = null;
-  }
 }
 
 // ============================================================
