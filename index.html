@@ -43,8 +43,8 @@ body {
 /* === LAYOUT === */
 .app {
   display: grid;
-  grid-template-columns: 320px 1fr;
-  grid-template-rows: auto 1fr;
+  grid-template-columns: 300px 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
 }
 
@@ -88,10 +88,11 @@ body {
   background: var(--bg-secondary);
   border-right: 1px solid var(--border);
   overflow-y: auto;
+  min-height: 0;  /* CSS Grid에서 스크롤 작동하려면 필수 */
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .sidebar::-webkit-scrollbar { width: 4px; }
@@ -106,8 +107,8 @@ body {
 }
 
 .panel-header {
-  padding: 10px 14px;
-  font-size: 11px;
+  padding: 8px 12px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -118,16 +119,25 @@ body {
   gap: 6px;
 }
 
-.panel-body { padding: 12px 14px; }
+.panel-body { padding: 10px 12px; }
 
 #relFilters {
-  max-height: 45vh;
+  max-height: 35vh;
   overflow-y: auto;
 }
 
 #relFilters::-webkit-scrollbar { width: 4px; }
 #relFilters::-webkit-scrollbar-track { background: transparent; }
 #relFilters::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+#focusInfo {
+  max-height: 35vh;
+  overflow-y: auto;
+}
+
+#focusInfo::-webkit-scrollbar { width: 4px; }
+#focusInfo::-webkit-scrollbar-track { background: transparent; }
+#focusInfo::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 /* === RELATIONSHIP FILTERS === */
 .rel-filter {
@@ -476,25 +486,37 @@ input[type="range"]::-webkit-slider-thumb {
       </div>
     </div>
 
-    <!-- Node Legend -->
+    <!-- Node Category Legend -->
     <div class="panel">
-      <div class="panel-header">🔵 노드 범례</div>
+      <div class="panel-header">🏷 노드 카테고리 (좌→우 흐름)</div>
       <div class="panel-body">
         <div class="node-legend">
           <div class="node-legend-item">
-            <div class="node-legend-dot" style="background:var(--node-cause)"></div>
-            <span>원인 역할 (out-degree 높음)</span>
+            <div class="node-legend-dot" style="background:#a78bfa"></div>
+            <span>① 서열/구조</span>
           </div>
           <div class="node-legend-item">
-            <div class="node-legend-dot" style="background:var(--node-effect)"></div>
-            <span>결과 역할 (in-degree 높음)</span>
+            <div class="node-legend-dot" style="background:#34d399"></div>
+            <span>② 제형 인자</span>
           </div>
           <div class="node-legend-item">
-            <div class="node-legend-dot" style="background:var(--node-balanced)"></div>
-            <span>균형 (원인 ≈ 결과)</span>
+            <div class="node-legend-dot" style="background:#fbbf24"></div>
+            <span>③ 스트레스 조건</span>
+          </div>
+          <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:#f87171"></div>
+            <span>④ 분해 경로</span>
+          </div>
+          <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:#60a5fa"></div>
+            <span>⑤ 품질 지표</span>
+          </div>
+          <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:#f472b6"></div>
+            <span>⑥ 임상 결과</span>
           </div>
           <div class="node-legend-item" style="margin-top:4px; padding-top:8px; border-top:1px solid var(--border);">
-            <span style="color:var(--text-muted); font-size:11px;">노드 크기 = 총 언급 빈도 · 화살표 굵기 = 빈도</span>
+            <span style="color:var(--text-muted); font-size:11px;">노드 크기 = 언급 빈도 · 화살표 굵기 = 빈도</span>
           </div>
         </div>
       </div>
@@ -550,50 +572,50 @@ const REL_GROUPS = {
   D: { label: '무방향', count: 1 },
 };
 
+// 노드 카테고리 설정 (계층형 레이아웃용)
+const CATEGORY_CONFIG = {
+  sequence_structure:  { color: '#a78bfa', label: '서열/구조',     xRatio: 0.08 },
+  formulation_factor:  { color: '#34d399', label: '제형 인자',     xRatio: 0.28 },
+  stress_condition:    { color: '#fbbf24', label: '스트레스 조건',  xRatio: 0.28 },
+  degradation_pathway: { color: '#f87171', label: '분해 경로',     xRatio: 0.52 },
+  quality_attribute:   { color: '#60a5fa', label: '품질 지표',     xRatio: 0.76 },
+  clinical_outcome:    { color: '#f472b6', label: '임상 결과',     xRatio: 0.94 },
+};
+const DEFAULT_CATEGORY = 'quality_attribute';
+
 // ============================================================
 // SAMPLE DATA (Step 2가 없어도 바로 데모 가능)
 // ============================================================
 const SAMPLE_DATA = [
-  // --- Group A: 범용 인과 ---
-  {cause:"sucrose",effect:"conformational stability",relationship:"stabilizes",frequency:18,num_papers:14,main_confidence:"high",sample_evidence:"Sucrose stabilizes mAb conformation through preferential exclusion mechanism"},
-  {cause:"agitation stress",effect:"colloidal stability",relationship:"destabilizes",frequency:15,num_papers:12,main_confidence:"high",sample_evidence:"Mechanical agitation destabilizes mAb formulations via interfacial stress"},
-  {cause:"high concentration",effect:"viscosity",relationship:"increases",frequency:35,num_papers:27,main_confidence:"high",sample_evidence:"Concentrated mAb formulations show dramatically increased viscosity"},
-  {cause:"arginine",effect:"viscosity",relationship:"decreases",frequency:12,num_papers:9,main_confidence:"high",sample_evidence:"Arginine reduces viscosity of concentrated mAb solutions"},
-  {cause:"polysorbate 80",effect:"aggregation",relationship:"inhibits",frequency:20,num_papers:16,main_confidence:"high",sample_evidence:"Polysorbate 80 inhibits interfacial stress-induced aggregation"},
-  {cause:"low pH",effect:"deamidation",relationship:"promotes",frequency:14,num_papers:11,main_confidence:"high",sample_evidence:"Acidic conditions promote asparagine deamidation in CDR regions"},
-  {cause:"freeze-thaw",effect:"subvisible particles",relationship:"induces",frequency:16,num_papers:13,main_confidence:"high",sample_evidence:"Freeze-thaw cycles induce generation of subvisible particles"},
-  {cause:"surfactant",effect:"surface adsorption",relationship:"prevents",frequency:11,num_papers:8,main_confidence:"high",sample_evidence:"Surfactants prevent protein adsorption at air-liquid interface"},
-  {cause:"SC delivery",effect:"high concentration",relationship:"requires",frequency:24,num_papers:20,main_confidence:"high",sample_evidence:"Subcutaneous administration requires concentrated antibody formulations above 100 mg/mL"},
-  // --- Group B: 구조/결합 ---
-  {cause:"oxidation",effect:"CDR conformation",relationship:"modifies",frequency:10,num_papers:8,main_confidence:"medium",sample_evidence:"Met oxidation in CDR regions modifies antigen-binding conformation"},
-  {cause:"excipient",effect:"protein surface",relationship:"binds",frequency:9,num_papers:7,main_confidence:"medium",sample_evidence:"Excipients bind to exposed hydrophobic regions on protein surface"},
-  {cause:"polysorbate 80",effect:"hydrophobic patches",relationship:"shields",frequency:13,num_papers:10,main_confidence:"high",sample_evidence:"PS80 shields aggregation-prone hydrophobic patches from solvent exposure"},
-  // --- Group C: 분해 메커니즘 ---
-  {cause:"thermal stress",effect:"mAb",relationship:"aggregates",frequency:28,num_papers:22,main_confidence:"high",sample_evidence:"Thermal stress at 40C accelerates mAb aggregate formation"},
-  {cause:"light exposure",effect:"Trp residues",relationship:"oxidizes",frequency:10,num_papers:7,main_confidence:"high",sample_evidence:"UV light exposure oxidizes tryptophan residues in mAb"},
-  {cause:"alkaline pH",effect:"Asn residues",relationship:"deamidates",frequency:12,num_papers:9,main_confidence:"high",sample_evidence:"pH above 7 promotes deamidation of asparagine residues"},
-  {cause:"acidic pH",effect:"Asp residues",relationship:"isomerizes",frequency:8,num_papers:6,main_confidence:"medium",sample_evidence:"Acidic conditions promote aspartate isomerization in CDR"},
-  {cause:"low pH",effect:"hinge region",relationship:"fragments",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"Acidic pH induces cleavage at the hinge region of IgG1"},
-  {cause:"high temperature",effect:"Fab domain",relationship:"unfolds",frequency:18,num_papers:14,main_confidence:"high",sample_evidence:"Elevated temperature causes thermal unfolding of Fab domain below Tm"},
-  {cause:"mAb",effect:"glass surface",relationship:"adsorbs",frequency:9,num_papers:7,main_confidence:"medium",sample_evidence:"Protein adsorbs to borosilicate glass surface of prefilled syringes"},
-  {cause:"high concentration",effect:"mAb at low temperature",relationship:"precipitates",frequency:6,num_papers:4,main_confidence:"low",sample_evidence:"LLPS and opalescence observed at high concentration and low temperature"},
-  {cause:"peroxide",effect:"polysorbate 80",relationship:"degrades",frequency:8,num_papers:6,main_confidence:"high",sample_evidence:"Residual peroxides degrade polysorbate via auto-oxidation"},
-  // --- Group D: 무방향 ---
-  {cause:"glycosylation pattern",effect:"Tm",relationship:"correlates",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"Glycan composition correlates with thermal melting temperature"},
-  // --- 추가 체인 관계들 ---
-  {cause:"aggregation",effect:"immunogenicity risk",relationship:"increases",frequency:22,num_papers:18,main_confidence:"high",sample_evidence:"Protein aggregates increase risk of unwanted immune response"},
-  {cause:"subvisible particles",effect:"immunogenicity risk",relationship:"increases",frequency:11,num_papers:9,main_confidence:"medium",sample_evidence:"Subvisible particles may act as adjuvants triggering immune response"},
-  {cause:"viscosity",effect:"injectability",relationship:"decreases",frequency:20,num_papers:16,main_confidence:"high",sample_evidence:"Elevated viscosity impairs syringeability for subcutaneous injection"},
-  {cause:"deamidation",effect:"acidic charge variants",relationship:"increases",frequency:13,num_papers:10,main_confidence:"high",sample_evidence:"Asparagine deamidation generates acidic species detectable by CEX"},
-  {cause:"oxidation",effect:"potency",relationship:"decreases",frequency:11,num_papers:8,main_confidence:"medium",sample_evidence:"Oxidative modifications in CDR regions reduce antigen binding affinity"},
-  {cause:"NaCl",effect:"viscosity",relationship:"decreases",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"Ionic strength modulation with NaCl lowers solution viscosity"},
-  {cause:"histidine buffer",effect:"conformational stability",relationship:"stabilizes",frequency:9,num_papers:7,main_confidence:"medium",sample_evidence:"Histidine buffer at pH 6.0 provides favorable conformational stability"},
-  {cause:"high concentration",effect:"protein-protein interaction",relationship:"increases",frequency:19,num_papers:15,main_confidence:"high",sample_evidence:"Elevated concentration increases reversible self-association"},
-  {cause:"protein-protein interaction",effect:"viscosity",relationship:"increases",frequency:14,num_papers:11,main_confidence:"high",sample_evidence:"Reversible self-association contributes to non-Newtonian viscosity behavior"},
-  {cause:"agitation stress",effect:"mAb",relationship:"aggregates",frequency:17,num_papers:14,main_confidence:"high",sample_evidence:"Mechanical stress from shaking induces interfacial aggregation"},
-  {cause:"PS80 degradation products",effect:"subvisible particles",relationship:"induces",frequency:8,num_papers:6,main_confidence:"high",sample_evidence:"Free fatty acids from PS80 degradation nucleate visible and subvisible particles"},
-  {cause:"silicone oil",effect:"subvisible particles",relationship:"induces",frequency:6,num_papers:5,main_confidence:"medium",sample_evidence:"Silicone oil droplets from prefilled syringes contribute to particle count"},
-  {cause:"trehalose",effect:"conformational stability",relationship:"stabilizes",frequency:10,num_papers:8,main_confidence:"high",sample_evidence:"Trehalose protects mAb conformation during lyophilization and storage"},
+  {cause:"CDR Asn residue",category_cause:"sequence_structure",effect:"deamidation",category_effect:"degradation_pathway",relationship:"promotes",frequency:8,num_papers:6,main_confidence:"high",sample_evidence:"Asn residues in CDR are hotspots for deamidation"},
+  {cause:"hydrophobic patch",category_cause:"sequence_structure",effect:"aggregation",category_effect:"degradation_pathway",relationship:"promotes",frequency:10,num_papers:8,main_confidence:"high",sample_evidence:"Surface hydrophobic patches promote self-association and aggregation"},
+  {cause:"polysorbate 80",category_cause:"formulation_factor",effect:"aggregation",category_effect:"degradation_pathway",relationship:"inhibits",frequency:20,num_papers:16,main_confidence:"high",sample_evidence:"PS80 inhibits interfacial stress-induced aggregation"},
+  {cause:"sucrose",category_cause:"formulation_factor",effect:"conformational stability",category_effect:"quality_attribute",relationship:"stabilizes",frequency:18,num_papers:14,main_confidence:"high",sample_evidence:"Sucrose stabilizes mAb conformation through preferential exclusion"},
+  {cause:"arginine",category_cause:"formulation_factor",effect:"viscosity",category_effect:"quality_attribute",relationship:"decreases",frequency:12,num_papers:9,main_confidence:"high",sample_evidence:"Arginine reduces viscosity of concentrated mAb solutions"},
+  {cause:"high concentration",category_cause:"formulation_factor",effect:"viscosity",category_effect:"quality_attribute",relationship:"increases",frequency:35,num_papers:27,main_confidence:"high",sample_evidence:"Concentrated mAb formulations show dramatically increased viscosity"},
+  {cause:"high concentration",category_cause:"formulation_factor",effect:"protein-protein interaction",category_effect:"degradation_pathway",relationship:"increases",frequency:19,num_papers:15,main_confidence:"high",sample_evidence:"Elevated concentration increases reversible self-association"},
+  {cause:"low pH",category_cause:"formulation_factor",effect:"deamidation",category_effect:"degradation_pathway",relationship:"promotes",frequency:14,num_papers:11,main_confidence:"high",sample_evidence:"Acidic conditions promote asparagine deamidation"},
+  {cause:"NaCl",category_cause:"formulation_factor",effect:"viscosity",category_effect:"quality_attribute",relationship:"decreases",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"NaCl lowers solution viscosity"},
+  {cause:"trehalose",category_cause:"formulation_factor",effect:"conformational stability",category_effect:"quality_attribute",relationship:"stabilizes",frequency:10,num_papers:8,main_confidence:"high",sample_evidence:"Trehalose protects mAb conformation"},
+  {cause:"histidine buffer",category_cause:"formulation_factor",effect:"conformational stability",category_effect:"quality_attribute",relationship:"stabilizes",frequency:9,num_papers:7,main_confidence:"medium",sample_evidence:"Histidine buffer at pH 6.0 provides favorable stability"},
+  {cause:"polysorbate 80",category_cause:"formulation_factor",effect:"hydrophobic patch",category_effect:"sequence_structure",relationship:"shields",frequency:13,num_papers:10,main_confidence:"high",sample_evidence:"PS80 shields aggregation-prone hydrophobic patches"},
+  {cause:"thermal stress",category_cause:"stress_condition",effect:"aggregation",category_effect:"degradation_pathway",relationship:"promotes",frequency:22,num_papers:18,main_confidence:"high",sample_evidence:"Thermal stress accelerates aggregate formation"},
+  {cause:"light exposure",category_cause:"stress_condition",effect:"oxidation",category_effect:"degradation_pathway",relationship:"induces",frequency:10,num_papers:7,main_confidence:"high",sample_evidence:"UV light induces Trp and Met oxidation"},
+  {cause:"agitation stress",category_cause:"stress_condition",effect:"aggregation",category_effect:"degradation_pathway",relationship:"induces",frequency:17,num_papers:14,main_confidence:"high",sample_evidence:"Mechanical stress induces interfacial aggregation"},
+  {cause:"freeze-thaw",category_cause:"stress_condition",effect:"subvisible particle count",category_effect:"quality_attribute",relationship:"increases",frequency:16,num_papers:13,main_confidence:"high",sample_evidence:"Freeze-thaw cycles increase subvisible particle count"},
+  {cause:"high temperature",category_cause:"stress_condition",effect:"Fab domain",category_effect:"sequence_structure",relationship:"unfolds",frequency:18,num_papers:14,main_confidence:"high",sample_evidence:"Elevated temperature causes Fab domain unfolding"},
+  {cause:"peroxide",category_cause:"stress_condition",effect:"polysorbate 80",category_effect:"formulation_factor",relationship:"degrades",frequency:8,num_papers:6,main_confidence:"high",sample_evidence:"Residual peroxides degrade polysorbate"},
+  {cause:"aggregation",category_cause:"degradation_pathway",effect:"SEC monomer %",category_effect:"quality_attribute",relationship:"decreases",frequency:15,num_papers:12,main_confidence:"high",sample_evidence:"Aggregation reduces SEC monomer percentage"},
+  {cause:"aggregation",category_cause:"degradation_pathway",effect:"HMW %",category_effect:"quality_attribute",relationship:"increases",frequency:14,num_papers:11,main_confidence:"high",sample_evidence:"Aggregation increases HMW species"},
+  {cause:"oxidation",category_cause:"degradation_pathway",effect:"potency",category_effect:"quality_attribute",relationship:"decreases",frequency:11,num_papers:8,main_confidence:"medium",sample_evidence:"Oxidative modifications reduce antigen binding affinity"},
+  {cause:"deamidation",category_cause:"degradation_pathway",effect:"charge variants",category_effect:"quality_attribute",relationship:"increases",frequency:13,num_papers:10,main_confidence:"high",sample_evidence:"Deamidation generates acidic charge variants"},
+  {cause:"protein-protein interaction",category_cause:"degradation_pathway",effect:"viscosity",category_effect:"quality_attribute",relationship:"increases",frequency:14,num_papers:11,main_confidence:"high",sample_evidence:"Reversible self-association increases viscosity"},
+  {cause:"aggregation",category_cause:"degradation_pathway",effect:"immunogenicity risk",category_effect:"clinical_outcome",relationship:"increases",frequency:22,num_papers:18,main_confidence:"high",sample_evidence:"Aggregates increase risk of unwanted immune response"},
+  {cause:"viscosity",category_cause:"quality_attribute",effect:"injectability",category_effect:"clinical_outcome",relationship:"decreases",frequency:20,num_papers:16,main_confidence:"high",sample_evidence:"Elevated viscosity impairs SC injectability"},
+  {cause:"subvisible particle count",category_cause:"quality_attribute",effect:"immunogenicity risk",category_effect:"clinical_outcome",relationship:"increases",frequency:11,num_papers:9,main_confidence:"medium",sample_evidence:"Subvisible particles may trigger immune response"},
+  {cause:"potency",category_cause:"quality_attribute",effect:"efficacy",category_effect:"clinical_outcome",relationship:"correlates",frequency:9,num_papers:7,main_confidence:"high",sample_evidence:"Potency correlates with therapeutic efficacy"},
+  {cause:"SC delivery",category_cause:"clinical_outcome",effect:"high concentration",category_effect:"formulation_factor",relationship:"requires",frequency:24,num_papers:20,main_confidence:"high",sample_evidence:"SC requires formulations above 100 mg/mL"},
+  {cause:"glycosylation pattern",category_cause:"sequence_structure",effect:"Tm",category_effect:"quality_attribute",relationship:"correlates",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"Glycan composition correlates with Tm"},
 ];
 
 // ============================================================
@@ -770,8 +792,10 @@ function updateGraph() {
     d.num_papers >= minPapers
   );
 
-  // Build nodes and links
+  // Build nodes and links (with category tracking)
   const nodeMap = new Map();
+  const nodeCats = {};  // node → category (most common)
+  const nodeCatCounts = {};  // node → {cat: count}
   const links = [];
 
   filtered.forEach(d => {
@@ -783,6 +807,16 @@ function updateGraph() {
     nodeMap.get(d.effect).inW += d.frequency;
     nodeMap.get(d.effect).total += d.frequency;
 
+    // Track categories
+    if (d.category_cause) {
+      if (!nodeCatCounts[d.cause]) nodeCatCounts[d.cause] = {};
+      nodeCatCounts[d.cause][d.category_cause] = (nodeCatCounts[d.cause][d.category_cause] || 0) + 1;
+    }
+    if (d.category_effect) {
+      if (!nodeCatCounts[d.effect]) nodeCatCounts[d.effect] = {};
+      nodeCatCounts[d.effect][d.category_effect] = (nodeCatCounts[d.effect][d.category_effect] || 0) + 1;
+    }
+
     links.push({
       source: d.cause,
       target: d.effect,
@@ -792,6 +826,18 @@ function updateGraph() {
       confidence: d.main_confidence || 'medium',
       evidence: d.sample_evidence || '',
     });
+  });
+
+  // Determine primary category for each node
+  const hasCategories = Object.keys(nodeCatCounts).length > 0;
+  for (const [node, cats] of Object.entries(nodeCatCounts)) {
+    const best = Object.entries(cats).sort((a,b) => b[1] - a[1])[0];
+    if (best) nodeCats[node] = best[0];
+  }
+  // Assign default for uncategorized nodes
+  nodeMap.forEach((v, k) => {
+    if (!nodeCats[k]) nodeCats[k] = DEFAULT_CATEGORY;
+    v.category = nodeCats[k];
   });
 
   const nodes = Array.from(nodeMap.values());
@@ -825,16 +871,47 @@ function updateGraph() {
     return;
   }
 
-  // 레이아웃 계산 (시뮬레이션 없이, 위치만 계산)
-  if (simulation) simulation.stop();
-  simulation = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links).id(d => d.id).distance(120))
-    .force('charge', d3.forceManyBody().strength(-400))
-    .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collision', d3.forceCollide().radius(d => rScale(d.total) + 10))
+  // ===== 계층형 레이아웃 (카테고리별 x축 배치, y축은 force) =====
+  const margin = { top: 60, bottom: 40, left: 40, right: 40 };
+  const usableW = width - margin.left - margin.right;
+  const usableH = height - margin.top - margin.bottom;
+
+  // x축: 카테고리별 고정 위치
+  nodes.forEach(n => {
+    const cfg = CATEGORY_CONFIG[n.category] || CATEGORY_CONFIG[DEFAULT_CATEGORY];
+    n.fx = margin.left + cfg.xRatio * usableW;  // fixed x
+  });
+
+  // y축: force simulation (y방향만)
+  const simY = d3.forceSimulation(nodes)
+    .force('y', d3.forceY(height / 2).strength(0.05))
+    .force('collision', d3.forceCollide().radius(d => rScale(d.total) + 8))
+    .force('charge', d3.forceManyBody().strength(-80))
     .stop();
-  for (let i = 0; i < 300; i++) simulation.tick();
-  simulation = null; // 시뮬레이션 완전 해제
+  for (let i = 0; i < 200; i++) simY.tick();
+  nodes.forEach(n => { n.x = n.fx; });  // finalize
+
+  // 카테고리 열 라벨 그리기
+  const drawnCats = new Set(nodes.map(n => n.category));
+  Object.entries(CATEGORY_CONFIG).forEach(([cat, cfg]) => {
+    if (!drawnCats.has(cat)) return;
+    const cx = margin.left + cfg.xRatio * usableW;
+    // 열 배경 밴드
+    zoomGroup.append('rect')
+      .attr('x', cx - 50).attr('y', margin.top - 10)
+      .attr('width', 100).attr('height', usableH + 20)
+      .attr('fill', cfg.color).attr('opacity', 0.04)
+      .attr('rx', 8);
+    // 라벨
+    zoomGroup.append('text')
+      .attr('x', cx).attr('y', 24)
+      .attr('text-anchor', 'middle')
+      .attr('fill', cfg.color)
+      .attr('font-size', 11)
+      .attr('font-weight', 600)
+      .attr('font-family', 'IBM Plex Sans, sans-serif')
+      .text(cfg.label);
+  });
 
   // Links
   const link = zoomGroup.append('g')
@@ -844,19 +921,19 @@ function updateGraph() {
     .attr('class', d => `link ${d.relationship === 'correlates' ? 'link-associated' : ''}`)
     .attr('stroke', d => REL_CONFIG[d.relationship]?.color || '#475569')
     .attr('stroke-width', d => wScale(d.frequency))
-    .attr('stroke-opacity', 0.6)
+    .attr('stroke-opacity', 0.5)
     .attr('marker-end', d => `url(#arrow-${d.relationship})`)
     .attr('d', d => {
       const dx = d.target.x - d.source.x;
       const dy = d.target.y - d.source.y;
-      const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
+      const dr = Math.sqrt(dx * dx + dy * dy) * 2;
       return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
     })
     .on('mouseover', (event, d) => showEdgeTooltip(event, d))
     .on('mousemove', (event) => moveTooltip(event))
     .on('mouseout', hideTooltip);
 
-  // Nodes
+  // Nodes (카테고리별 색상)
   const node = zoomGroup.append('g')
     .selectAll('g')
     .data(nodes)
@@ -868,21 +945,17 @@ function updateGraph() {
         d3.select(event.sourceEvent.target.parentNode)
           .attr('transform', `translate(${d.x},${d.y})`);
         link.attr('d', l => {
-          const dx = l.target.x - l.source.x;
-          const dy = l.target.y - l.source.y;
-          const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
-          return `M${l.source.x},${l.source.y}A${dr},${dr} 0 0,1 ${l.target.x},${l.target.y}`;
+          const dx2 = l.target.x - l.source.x;
+          const dy2 = l.target.y - l.source.y;
+          const dr2 = Math.sqrt(dx2 * dx2 + dy2 * dy2) * 2;
+          return `M${l.source.x},${l.source.y}A${dr2},${dr2} 0 0,1 ${l.target.x},${l.target.y}`;
         });
       }));
 
   node.append('circle')
     .attr('class', 'node-circle')
     .attr('r', d => rScale(d.total))
-    .attr('fill', d => {
-      if (d.outW > d.inW * 1.3) return 'var(--node-cause)';
-      if (d.inW > d.outW * 1.3) return 'var(--node-effect)';
-      return 'var(--node-balanced)';
-    })
+    .attr('fill', d => (CATEGORY_CONFIG[d.category] || CATEGORY_CONFIG[DEFAULT_CATEGORY]).color)
     .attr('fill-opacity', 0.85)
     .on('mouseover', (event, d) => showNodeTooltip(event, d))
     .on('mousemove', (event) => moveTooltip(event))
@@ -909,13 +982,13 @@ function updateGraph() {
 }
 
 // ============================================================
-// TOOLTIPS
+// TOOLTIPS (카테고리 표시 포함)
 // ============================================================
 function showNodeTooltip(event, d) {
-  const role = d.outW > d.inW * 1.3 ? '원인(Cause)' : d.inW > d.outW * 1.3 ? '결과(Effect)' : '균형';
+  const catCfg = CATEGORY_CONFIG[d.category] || {};
   tooltip.innerHTML = `
     <div class="tooltip-title">${d.id}</div>
-    <div class="tooltip-row"><span class="label">역할</span> ${role}</div>
+    <div class="tooltip-row"><span class="label">카테고리</span> <span style="color:${catCfg.color || '#888'}">${catCfg.label || d.category}</span></div>
     <div class="tooltip-row"><span class="label">총 언급</span> ${d.total}회</div>
     <div class="tooltip-row"><span class="label">원인↗</span> ${d.outW}회</div>
     <div class="tooltip-row"><span class="label">결과↙</span> ${d.inW}회</div>
@@ -925,8 +998,10 @@ function showNodeTooltip(event, d) {
 
 function showEdgeTooltip(event, d) {
   const cfg = REL_CONFIG[d.relationship] || {};
+  const srcCat = CATEGORY_CONFIG[d.source?.category] || {};
+  const tgtCat = CATEGORY_CONFIG[d.target?.category] || {};
   tooltip.innerHTML = `
-    <div class="tooltip-title">${d.source.id || d.source} ${cfg.symbol || '→'} ${d.target.id || d.target}</div>
+    <div class="tooltip-title"><span style="color:${srcCat.color || '#888'}">${d.source.id || d.source}</span> ${cfg.symbol || '→'} <span style="color:${tgtCat.color || '#888'}">${d.target.id || d.target}</span></div>
     <div class="tooltip-row"><span class="label">관계</span>
       <span class="tooltip-rel" style="background:${cfg.color}22; color:${cfg.color}">${cfg.label || d.relationship}</span>
     </div>
