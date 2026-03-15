@@ -120,6 +120,15 @@ body {
 
 .panel-body { padding: 12px 14px; }
 
+#relFilters {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+#relFilters::-webkit-scrollbar { width: 4px; }
+#relFilters::-webkit-scrollbar-track { background: transparent; }
+#relFilters::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
 /* === RELATIONSHIP FILTERS === */
 .rel-filter {
   display: flex;
@@ -408,16 +417,16 @@ input[type="range"]::-webkit-slider-thumb {
         <div class="slider-group">
           <div class="slider-header">
             <span class="slider-label">최소 빈도</span>
-            <span class="slider-value" id="freqValue">1</span>
+            <span class="slider-value" id="freqValue">≥ 3</span>
           </div>
-          <input type="range" id="freqSlider" min="1" max="20" value="1">
+          <input type="range" id="freqSlider" min="1" max="20" value="3">
         </div>
         <div class="slider-group">
           <div class="slider-header">
             <span class="slider-label">최소 논문 수</span>
-            <span class="slider-value" id="paperValue">≥ 2</span>
+            <span class="slider-value" id="paperValue">≥ 3</span>
           </div>
-          <input type="range" id="paperSlider" min="1" max="20" value="2">
+          <input type="range" id="paperSlider" min="1" max="20" value="3">
         </div>
       </div>
     </div>
@@ -461,48 +470,85 @@ input[type="range"]::-webkit-slider-thumb {
 // CONFIG
 // ============================================================
 const REL_CONFIG = {
-  increases:       { color: '#ef4444', label: '증가시킴 (increases)',       symbol: '↑' },
-  decreases:       { color: '#3b82f6', label: '감소시킴 (decreases)',       symbol: '↓' },
-  leads_to:        { color: '#a855f7', label: '야기함 (leads_to)',          symbol: '→' },
-  inhibits:        { color: '#22c55e', label: '억제함 (inhibits)',          symbol: '⊣' },
-  requires:        { color: '#94a3b8', label: '필요로 함 (requires)',       symbol: '⊂' },
-  associated_with: { color: '#475569', label: '연관됨 (associated_with)',   symbol: '~' },
+  // Group A: 범용 인과 (9개) — 빨강/파랑/보라 계열
+  stabilizes:    { color: '#10b981', label: '안정화 (stabilizes)',      symbol: '⊕', group: 'A' },
+  destabilizes:  { color: '#ef4444', label: '불안정화 (destabilizes)',   symbol: '⊖', group: 'A' },
+  increases:     { color: '#f97316', label: '증가 (increases)',         symbol: '↑', group: 'A' },
+  decreases:     { color: '#3b82f6', label: '감소 (decreases)',         symbol: '↓', group: 'A' },
+  inhibits:      { color: '#06b6d4', label: '억제 (inhibits)',          symbol: '⊣', group: 'A' },
+  promotes:      { color: '#e11d48', label: '촉진 (promotes)',          symbol: '»', group: 'A' },
+  induces:       { color: '#dc2626', label: '유발 (induces)',           symbol: '⇒', group: 'A' },
+  prevents:      { color: '#0ea5e9', label: '차단 (prevents)',          symbol: '⊘', group: 'A' },
+  requires:      { color: '#8b5cf6', label: '필요 (requires)',          symbol: '⊂', group: 'A' },
+  // Group B: 구조/결합 (3개) — 청록 계열
+  modifies:      { color: '#14b8a6', label: '구조변형 (modifies)',       symbol: '~>', group: 'B' },
+  binds:         { color: '#2dd4bf', label: '결합 (binds)',             symbol: '⊷',  group: 'B' },
+  shields:       { color: '#5eead4', label: '차폐 (shields)',           symbol: '▷',  group: 'B' },
+  // Group C: 분해 메커니즘 (9개) — 주황/갈색/진한 계열
+  aggregates:    { color: '#b91c1c', label: '응집 (aggregates)',        symbol: 'Ag', group: 'C' },
+  oxidizes:      { color: '#c2410c', label: '산화 (oxidizes)',          symbol: 'Ox', group: 'C' },
+  deamidates:    { color: '#a16207', label: '탈아미드화 (deamidates)',    symbol: 'Da', group: 'C' },
+  isomerizes:    { color: '#92400e', label: '이성질화 (isomerizes)',      symbol: 'Is', group: 'C' },
+  fragments:     { color: '#9f1239', label: '단편화 (fragments)',        symbol: '✂',  group: 'C' },
+  unfolds:       { color: '#7e22ce', label: '언폴딩 (unfolds)',          symbol: 'Un', group: 'C' },
+  adsorbs:       { color: '#6d28d9', label: '흡착 (adsorbs)',           symbol: 'Ad', group: 'C' },
+  precipitates:  { color: '#4338ca', label: '침전 (precipitates)',       symbol: 'Pp', group: 'C' },
+  degrades:      { color: '#78350f', label: '분해 (degrades)',          symbol: 'Dg', group: 'C' },
+  // Group D: 무방향 (1개)
+  correlates:    { color: '#475569', label: '상관관계 (correlates)',      symbol: '~',  group: 'D' },
+};
+
+const REL_GROUPS = {
+  A: { label: '범용 인과', count: 9 },
+  B: { label: '구조/결합', count: 3 },
+  C: { label: '분해 메커니즘', count: 9 },
+  D: { label: '무방향', count: 1 },
 };
 
 // ============================================================
 // SAMPLE DATA (Step 2가 없어도 바로 데모 가능)
 // ============================================================
 const SAMPLE_DATA = [
-  {cause:"high concentration",effect:"increased viscosity",relationship:"increases",frequency:28,num_papers:22,main_confidence:"high",sample_evidence:"High protein concentrations required for SC delivery lead to elevated viscosity"},
-  {cause:"high concentration",effect:"aggregation",relationship:"increases",frequency:35,num_papers:27,main_confidence:"high",sample_evidence:"Concentrated mAb formulations show increased aggregation propensity"},
-  {cause:"high concentration",effect:"opalescence",relationship:"increases",frequency:12,num_papers:9,main_confidence:"medium",sample_evidence:"High concentration solutions exhibit increased opalescence due to protein-protein interactions"},
-  {cause:"SC delivery",effect:"high concentration",relationship:"requires",frequency:24,num_papers:20,main_confidence:"high",sample_evidence:"Subcutaneous administration requires concentrated antibody formulations"},
-  {cause:"aggregation",effect:"immunogenicity",relationship:"increases",frequency:18,num_papers:15,main_confidence:"high",sample_evidence:"Protein aggregates can trigger unwanted immune responses"},
-  {cause:"aggregation",effect:"reduced efficacy",relationship:"leads_to",frequency:14,num_papers:11,main_confidence:"medium",sample_evidence:"Aggregate formation leads to loss of biological activity"},
-  {cause:"increased viscosity",effect:"poor injectability",relationship:"leads_to",frequency:20,num_papers:16,main_confidence:"high",sample_evidence:"Elevated viscosity impairs syringeability for SC injection"},
-  {cause:"polysorbate 80",effect:"aggregation",relationship:"inhibits",frequency:15,num_papers:12,main_confidence:"high",sample_evidence:"Polysorbate 80 protects against interfacial stress-induced aggregation"},
-  {cause:"sucrose",effect:"thermal stability",relationship:"increases",frequency:13,num_papers:10,main_confidence:"high",sample_evidence:"Sucrose as a stabilizer increases conformational stability of mAbs"},
-  {cause:"low pH",effect:"aggregation",relationship:"increases",frequency:16,num_papers:13,main_confidence:"high",sample_evidence:"Acidic conditions promote protein unfolding and subsequent aggregation"},
-  {cause:"high temperature",effect:"aggregation",relationship:"increases",frequency:22,num_papers:18,main_confidence:"high",sample_evidence:"Thermal stress accelerates aggregate formation"},
-  {cause:"high temperature",effect:"oxidation",relationship:"increases",frequency:11,num_papers:8,main_confidence:"medium",sample_evidence:"Elevated temperatures promote methionine and tryptophan oxidation"},
-  {cause:"oxidation",effect:"reduced potency",relationship:"leads_to",frequency:9,num_papers:7,main_confidence:"medium",sample_evidence:"Oxidative modifications in CDR regions can reduce antigen binding"},
-  {cause:"deamidation",effect:"charge variants",relationship:"leads_to",frequency:10,num_papers:8,main_confidence:"high",sample_evidence:"Asparagine deamidation generates acidic charge variants"},
-  {cause:"agitation",effect:"aggregation",relationship:"increases",frequency:17,num_papers:14,main_confidence:"high",sample_evidence:"Mechanical stress from agitation induces interfacial aggregation"},
-  {cause:"polysorbate 80",effect:"agitation-induced aggregation",relationship:"inhibits",frequency:8,num_papers:6,main_confidence:"high",sample_evidence:"Surfactants mitigate aggregation caused by air-liquid interface stress"},
-  {cause:"freeze-thaw",effect:"particle formation",relationship:"increases",frequency:12,num_papers:9,main_confidence:"high",sample_evidence:"Freeze-thaw cycles generate subvisible particles in mAb formulations"},
-  {cause:"arginine",effect:"viscosity",relationship:"decreases",frequency:10,num_papers:8,main_confidence:"high",sample_evidence:"Arginine reduces viscosity of concentrated mAb solutions"},
-  {cause:"NaCl",effect:"viscosity",relationship:"decreases",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"Ionic strength modulation with NaCl can lower solution viscosity"},
-  {cause:"histidine buffer",effect:"stability",relationship:"increases",frequency:9,num_papers:7,main_confidence:"medium",sample_evidence:"Histidine buffer provides favorable stability at pH 5.5-6.5"},
-  {cause:"light exposure",effect:"oxidation",relationship:"increases",frequency:8,num_papers:6,main_confidence:"high",sample_evidence:"Photo-oxidation of tryptophan residues under light stress"},
-  {cause:"high concentration",effect:"protein-protein interaction",relationship:"increases",frequency:19,num_papers:15,main_confidence:"high",sample_evidence:"Elevated concentration increases self-association and PPI"},
-  {cause:"protein-protein interaction",effect:"increased viscosity",relationship:"leads_to",frequency:14,num_papers:11,main_confidence:"high",sample_evidence:"Reversible self-association contributes to non-Newtonian viscosity"},
-  {cause:"protein-protein interaction",effect:"opalescence",relationship:"leads_to",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"Attractive PPI manifests as solution opalescence"},
-  {cause:"particle formation",effect:"immunogenicity",relationship:"increases",frequency:11,num_papers:9,main_confidence:"medium",sample_evidence:"Subvisible particles may act as adjuvants triggering immune response"},
-  {cause:"glycosylation",effect:"stability",relationship:"associated_with",frequency:6,num_papers:5,main_confidence:"medium",sample_evidence:"Glycan profile influences thermal and colloidal stability"},
-  {cause:"Fc engineering",effect:"aggregation propensity",relationship:"associated_with",frequency:5,num_papers:4,main_confidence:"low",sample_evidence:"Fc mutations can alter aggregation behavior"},
-  {cause:"container surface",effect:"particle formation",relationship:"increases",frequency:6,num_papers:5,main_confidence:"medium",sample_evidence:"Glass and silicone oil from prefilled syringes contribute to particles"},
-  {cause:"reduced efficacy",effect:"treatment failure",relationship:"leads_to",frequency:5,num_papers:4,main_confidence:"medium",sample_evidence:"Loss of potency can lead to subtherapeutic drug levels"},
-  {cause:"immunogenicity",effect:"safety risk",relationship:"leads_to",frequency:8,num_papers:7,main_confidence:"high",sample_evidence:"Anti-drug antibodies pose safety concerns including hypersensitivity"},
+  // --- Group A: 범용 인과 ---
+  {cause:"sucrose",effect:"conformational stability",relationship:"stabilizes",frequency:18,num_papers:14,main_confidence:"high",sample_evidence:"Sucrose stabilizes mAb conformation through preferential exclusion mechanism"},
+  {cause:"agitation stress",effect:"colloidal stability",relationship:"destabilizes",frequency:15,num_papers:12,main_confidence:"high",sample_evidence:"Mechanical agitation destabilizes mAb formulations via interfacial stress"},
+  {cause:"high concentration",effect:"viscosity",relationship:"increases",frequency:35,num_papers:27,main_confidence:"high",sample_evidence:"Concentrated mAb formulations show dramatically increased viscosity"},
+  {cause:"arginine",effect:"viscosity",relationship:"decreases",frequency:12,num_papers:9,main_confidence:"high",sample_evidence:"Arginine reduces viscosity of concentrated mAb solutions"},
+  {cause:"polysorbate 80",effect:"aggregation",relationship:"inhibits",frequency:20,num_papers:16,main_confidence:"high",sample_evidence:"Polysorbate 80 inhibits interfacial stress-induced aggregation"},
+  {cause:"low pH",effect:"deamidation",relationship:"promotes",frequency:14,num_papers:11,main_confidence:"high",sample_evidence:"Acidic conditions promote asparagine deamidation in CDR regions"},
+  {cause:"freeze-thaw",effect:"subvisible particles",relationship:"induces",frequency:16,num_papers:13,main_confidence:"high",sample_evidence:"Freeze-thaw cycles induce generation of subvisible particles"},
+  {cause:"surfactant",effect:"surface adsorption",relationship:"prevents",frequency:11,num_papers:8,main_confidence:"high",sample_evidence:"Surfactants prevent protein adsorption at air-liquid interface"},
+  {cause:"SC delivery",effect:"high concentration",relationship:"requires",frequency:24,num_papers:20,main_confidence:"high",sample_evidence:"Subcutaneous administration requires concentrated antibody formulations above 100 mg/mL"},
+  // --- Group B: 구조/결합 ---
+  {cause:"oxidation",effect:"CDR conformation",relationship:"modifies",frequency:10,num_papers:8,main_confidence:"medium",sample_evidence:"Met oxidation in CDR regions modifies antigen-binding conformation"},
+  {cause:"excipient",effect:"protein surface",relationship:"binds",frequency:9,num_papers:7,main_confidence:"medium",sample_evidence:"Excipients bind to exposed hydrophobic regions on protein surface"},
+  {cause:"polysorbate 80",effect:"hydrophobic patches",relationship:"shields",frequency:13,num_papers:10,main_confidence:"high",sample_evidence:"PS80 shields aggregation-prone hydrophobic patches from solvent exposure"},
+  // --- Group C: 분해 메커니즘 ---
+  {cause:"thermal stress",effect:"mAb",relationship:"aggregates",frequency:28,num_papers:22,main_confidence:"high",sample_evidence:"Thermal stress at 40C accelerates mAb aggregate formation"},
+  {cause:"light exposure",effect:"Trp residues",relationship:"oxidizes",frequency:10,num_papers:7,main_confidence:"high",sample_evidence:"UV light exposure oxidizes tryptophan residues in mAb"},
+  {cause:"alkaline pH",effect:"Asn residues",relationship:"deamidates",frequency:12,num_papers:9,main_confidence:"high",sample_evidence:"pH above 7 promotes deamidation of asparagine residues"},
+  {cause:"acidic pH",effect:"Asp residues",relationship:"isomerizes",frequency:8,num_papers:6,main_confidence:"medium",sample_evidence:"Acidic conditions promote aspartate isomerization in CDR"},
+  {cause:"low pH",effect:"hinge region",relationship:"fragments",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"Acidic pH induces cleavage at the hinge region of IgG1"},
+  {cause:"high temperature",effect:"Fab domain",relationship:"unfolds",frequency:18,num_papers:14,main_confidence:"high",sample_evidence:"Elevated temperature causes thermal unfolding of Fab domain below Tm"},
+  {cause:"mAb",effect:"glass surface",relationship:"adsorbs",frequency:9,num_papers:7,main_confidence:"medium",sample_evidence:"Protein adsorbs to borosilicate glass surface of prefilled syringes"},
+  {cause:"high concentration",effect:"mAb at low temperature",relationship:"precipitates",frequency:6,num_papers:4,main_confidence:"low",sample_evidence:"LLPS and opalescence observed at high concentration and low temperature"},
+  {cause:"peroxide",effect:"polysorbate 80",relationship:"degrades",frequency:8,num_papers:6,main_confidence:"high",sample_evidence:"Residual peroxides degrade polysorbate via auto-oxidation"},
+  // --- Group D: 무방향 ---
+  {cause:"glycosylation pattern",effect:"Tm",relationship:"correlates",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"Glycan composition correlates with thermal melting temperature"},
+  // --- 추가 체인 관계들 ---
+  {cause:"aggregation",effect:"immunogenicity risk",relationship:"increases",frequency:22,num_papers:18,main_confidence:"high",sample_evidence:"Protein aggregates increase risk of unwanted immune response"},
+  {cause:"subvisible particles",effect:"immunogenicity risk",relationship:"increases",frequency:11,num_papers:9,main_confidence:"medium",sample_evidence:"Subvisible particles may act as adjuvants triggering immune response"},
+  {cause:"viscosity",effect:"injectability",relationship:"decreases",frequency:20,num_papers:16,main_confidence:"high",sample_evidence:"Elevated viscosity impairs syringeability for subcutaneous injection"},
+  {cause:"deamidation",effect:"acidic charge variants",relationship:"increases",frequency:13,num_papers:10,main_confidence:"high",sample_evidence:"Asparagine deamidation generates acidic species detectable by CEX"},
+  {cause:"oxidation",effect:"potency",relationship:"decreases",frequency:11,num_papers:8,main_confidence:"medium",sample_evidence:"Oxidative modifications in CDR regions reduce antigen binding affinity"},
+  {cause:"NaCl",effect:"viscosity",relationship:"decreases",frequency:7,num_papers:5,main_confidence:"medium",sample_evidence:"Ionic strength modulation with NaCl lowers solution viscosity"},
+  {cause:"histidine buffer",effect:"conformational stability",relationship:"stabilizes",frequency:9,num_papers:7,main_confidence:"medium",sample_evidence:"Histidine buffer at pH 6.0 provides favorable conformational stability"},
+  {cause:"high concentration",effect:"protein-protein interaction",relationship:"increases",frequency:19,num_papers:15,main_confidence:"high",sample_evidence:"Elevated concentration increases reversible self-association"},
+  {cause:"protein-protein interaction",effect:"viscosity",relationship:"increases",frequency:14,num_papers:11,main_confidence:"high",sample_evidence:"Reversible self-association contributes to non-Newtonian viscosity behavior"},
+  {cause:"agitation stress",effect:"mAb",relationship:"aggregates",frequency:17,num_papers:14,main_confidence:"high",sample_evidence:"Mechanical stress from shaking induces interfacial aggregation"},
+  {cause:"PS80 degradation products",effect:"subvisible particles",relationship:"induces",frequency:8,num_papers:6,main_confidence:"high",sample_evidence:"Free fatty acids from PS80 degradation nucleate visible and subvisible particles"},
+  {cause:"silicone oil",effect:"subvisible particles",relationship:"induces",frequency:6,num_papers:5,main_confidence:"medium",sample_evidence:"Silicone oil droplets from prefilled syringes contribute to particle count"},
+  {cause:"trehalose",effect:"conformational stability",relationship:"stabilizes",frequency:10,num_papers:8,main_confidence:"high",sample_evidence:"Trehalose protects mAb conformation during lyophilization and storage"},
 ];
 
 // ============================================================
@@ -510,8 +556,8 @@ const SAMPLE_DATA = [
 // ============================================================
 let rawData = [...SAMPLE_DATA];
 let activeRels = new Set(Object.keys(REL_CONFIG));
-let minFreq = 1;
-let minPapers = 2;
+let minFreq = 3;
+let minPapers = 3;
 let simulation = null;
 
 // ============================================================
@@ -558,18 +604,38 @@ Object.entries(REL_CONFIG).forEach(([key, cfg]) => {
 // ============================================================
 function buildRelFilters() {
   const container = document.getElementById('relFilters');
-  // Count edges per relationship type
   const counts = {};
   rawData.forEach(d => { counts[d.relationship] = (counts[d.relationship] || 0) + 1; });
 
   container.innerHTML = '';
+  let currentGroup = '';
+
   Object.entries(REL_CONFIG).forEach(([key, cfg]) => {
+    // Group header
+    if (cfg.group !== currentGroup) {
+      currentGroup = cfg.group;
+      const groupInfo = REL_GROUPS[currentGroup];
+      const header = document.createElement('div');
+      header.style.cssText = 'font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); padding:8px 0 4px; margin-top:6px; border-top:1px solid var(--border); cursor:pointer; display:flex; justify-content:space-between; align-items:center;';
+      if (currentGroup === 'A') header.style.borderTop = 'none';
+      header.innerHTML = `<span>${currentGroup}. ${groupInfo.label}</span><span style="font-size:9px; color:var(--accent); font-family:JetBrains Mono,monospace;">전체</span>`;
+      header.addEventListener('click', () => {
+        const groupRels = Object.entries(REL_CONFIG).filter(([,v]) => v.group === currentGroup).map(([k]) => k);
+        const allOn = groupRels.every(r => activeRels.has(r));
+        groupRels.forEach(r => { if (allOn) activeRels.delete(r); else activeRels.add(r); });
+        buildRelFilters();
+        updateGraph();
+      });
+      container.appendChild(header);
+    }
+
     const count = counts[key] || 0;
     const div = document.createElement('label');
     div.className = 'rel-filter';
+    const isDashed = key === 'correlates';
     div.innerHTML = `
       <input type="checkbox" data-rel="${key}" ${activeRels.has(key) ? 'checked' : ''}>
-      <div class="rel-color" style="background:${cfg.color}; ${key === 'associated_with' ? 'background:repeating-linear-gradient(90deg,'+cfg.color+' 0,'+cfg.color+' 4px,transparent 4px,transparent 7px)' : ''}"></div>
+      <div class="rel-color" style="background:${isDashed ? `repeating-linear-gradient(90deg,${cfg.color} 0,${cfg.color} 4px,transparent 4px,transparent 7px)` : cfg.color}"></div>
       <span class="rel-label">${cfg.label}</span>
       <span class="rel-count">${count}</span>
     `;
@@ -725,7 +791,7 @@ function updateGraph() {
     .selectAll('path')
     .data(links)
     .join('path')
-    .attr('class', d => `link ${d.relationship === 'associated_with' ? 'link-associated' : ''}`)
+    .attr('class', d => `link ${d.relationship === 'correlates' ? 'link-associated' : ''}`)
     .attr('stroke', d => REL_CONFIG[d.relationship]?.color || '#475569')
     .attr('stroke-width', d => wScale(d.frequency))
     .attr('stroke-opacity', 0.6)
@@ -848,6 +914,10 @@ async function init() {
   const maxP = Math.max(...rawData.map(d => d.num_papers), 20);
   document.getElementById('freqSlider').max = maxF;
   document.getElementById('paperSlider').max = maxP;
+  document.getElementById('freqSlider').value = minFreq;
+  document.getElementById('paperSlider').value = minPapers;
+  document.getElementById('freqValue').textContent = `≥ ${minFreq}`;
+  document.getElementById('paperValue').textContent = `≥ ${minPapers}`;
 
   buildRelFilters();
   updateGraph();
