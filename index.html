@@ -376,35 +376,6 @@ input[type="range"]::-webkit-slider-thumb {
 .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
 .empty-state h3 { font-size: 16px; color: var(--text-secondary); margin-bottom: 8px; }
 .empty-state p { font-size: 13px; line-height: 1.6; }
-
-/* === SEARCH === */
-.search-result {
-  padding: 4px 8px;
-  cursor: pointer;
-  border-radius: 3px;
-  color: var(--text-secondary);
-  transition: background 0.15s;
-}
-.search-result:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-/* === FOCUS MODE === */
-.node-dimmed circle { opacity: 0.08 !important; }
-.node-dimmed text { opacity: 0.08 !important; }
-.link-dimmed { opacity: 0.03 !important; }
-.node-highlighted circle { stroke: #fff !important; stroke-width: 3px !important; }
-.node-focused circle { stroke: var(--accent) !important; stroke-width: 4px !important; filter: drop-shadow(0 0 8px var(--accent)); }
-
-/* === FOCUS INFO === */
-.focus-title { font-size: 14px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
-.focus-section { margin-top: 8px; }
-.focus-section-title { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 4px; }
-.focus-edge { font-size: 11px; color: var(--text-secondary); padding: 2px 0; line-height: 1.5; }
-.focus-edge-rel { font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 1px 6px; border-radius: 3px; }
-.focus-clear { margin-top: 10px; padding: 6px 12px; background: var(--border); border: none; border-radius: 4px; color: var(--text-primary); font-size: 11px; cursor: pointer; width: 100%; }
-.focus-clear:hover { background: var(--bg-hover); }
 </style>
 </head>
 <body>
@@ -431,22 +402,6 @@ input[type="range"]::-webkit-slider-thumb {
           <span id="uploadLabel">⏳ 레포 CSV 로딩 중...</span>
         </div>
       </div>
-    </div>
-
-    <!-- Search -->
-    <div class="panel">
-      <div class="panel-header">🔍 노드 검색</div>
-      <div class="panel-body">
-        <input type="text" id="searchInput" placeholder="노드 이름 검색 (예: aggregation)" 
-               style="width:100%; padding:8px 10px; background:var(--bg-primary); border:1px solid var(--border); border-radius:4px; color:var(--text-primary); font-size:12px; font-family:inherit; outline:none;">
-        <div id="searchResults" style="max-height:150px; overflow-y:auto; margin-top:6px; font-size:11px;"></div>
-      </div>
-    </div>
-
-    <!-- Focus Info -->
-    <div class="panel" id="focusPanel" style="display:none;">
-      <div class="panel-header">🎯 선택된 노드</div>
-      <div class="panel-body" id="focusInfo"></div>
     </div>
 
     <!-- Relationship Type Filters -->
@@ -604,11 +559,6 @@ let activeRels = new Set(Object.keys(REL_CONFIG));
 let minFreq = 3;
 let minPapers = 3;
 let simulation = null;
-let focusedNode = null;
-let lastNodes = null;
-let lastLinks = null;
-let lastNodeSel = null;
-let lastLinkSel = null;
 
 // ============================================================
 // INIT
@@ -886,26 +836,12 @@ function updateGraph() {
     .attr('fill-opacity', 0.85)
     .on('mouseover', (event, d) => showNodeTooltip(event, d))
     .on('mousemove', (event) => moveTooltip(event))
-    .on('mouseout', hideTooltip)
-    .on('click', (event, d) => {
-      event.stopPropagation();
-      focusedNode = (focusedNode === d.id) ? null : d.id;
-      applyFocus();
-    });
+    .on('mouseout', hideTooltip);
 
   node.append('text')
     .attr('class', 'node-label')
     .attr('dy', d => rScale(d.total) + 14)
     .text(d => d.id.length > 25 ? d.id.slice(0, 23) + '…' : d.id);
-
-  // Store references for focus
-  lastNodes = nodes;
-  lastLinks = links;
-  lastNodeSel = node;
-  lastLinkSel = link;
-
-  // Apply focus if active
-  if (focusedNode) applyFocus();
 }
 
 // ============================================================
@@ -946,131 +882,6 @@ function moveTooltip(event) {
 }
 
 function hideTooltip() { tooltip.classList.remove('visible'); }
-
-// ============================================================
-// FOCUS MODE — 노드 클릭 시 연결된 것만 하이라이트
-// ============================================================
-function applyFocus() {
-  if (!lastNodeSel || !lastLinkSel) return;
-
-  const panel = document.getElementById('focusPanel');
-  const info = document.getElementById('focusInfo');
-
-  if (!focusedNode) {
-    // Unfocus: 모든 요소 복원
-    lastNodeSel.attr('class', '');
-    lastLinkSel.attr('class', d => `link ${d.relationship === 'correlates' ? 'link-associated' : ''}`);
-    lastLinkSel.attr('stroke-opacity', 0.6);
-    panel.style.display = 'none';
-    return;
-  }
-
-  // Find connected nodes
-  const connectedNodes = new Set([focusedNode]);
-  const connectedEdges = [];
-  lastLinks.forEach(l => {
-    const srcId = l.source.id || l.source;
-    const tgtId = l.target.id || l.target;
-    if (srcId === focusedNode || tgtId === focusedNode) {
-      connectedNodes.add(srcId);
-      connectedNodes.add(tgtId);
-      connectedEdges.push(l);
-    }
-  });
-
-  // Dim non-connected
-  lastNodeSel.attr('class', d => {
-    if (d.id === focusedNode) return 'node-focused';
-    if (connectedNodes.has(d.id)) return 'node-highlighted';
-    return 'node-dimmed';
-  });
-
-  lastLinkSel.attr('class', d => {
-    const srcId = d.source.id || d.source;
-    const tgtId = d.target.id || d.target;
-    if (srcId === focusedNode || tgtId === focusedNode) {
-      return `link ${d.relationship === 'correlates' ? 'link-associated' : ''}`;
-    }
-    return 'link link-dimmed';
-  });
-  lastLinkSel.attr('stroke-opacity', d => {
-    const srcId = d.source.id || d.source;
-    const tgtId = d.target.id || d.target;
-    return (srcId === focusedNode || tgtId === focusedNode) ? 0.8 : 0.03;
-  });
-
-  // Build info panel
-  const outgoing = connectedEdges.filter(l => (l.source.id || l.source) === focusedNode);
-  const incoming = connectedEdges.filter(l => (l.target.id || l.target) === focusedNode);
-
-  let html = `<div class="focus-title">${focusedNode}</div>`;
-  html += `<div style="font-size:11px; color:var(--text-muted);">연결 ${connectedEdges.length}개 (→${outgoing.length} / ←${incoming.length})</div>`;
-
-  if (outgoing.length > 0) {
-    html += `<div class="focus-section"><div class="focus-section-title">→ 영향을 주는 대상</div>`;
-    outgoing.sort((a,b) => b.frequency - a.frequency);
-    outgoing.forEach(e => {
-      const cfg = REL_CONFIG[e.relationship] || {};
-      html += `<div class="focus-edge"><span class="focus-edge-rel" style="background:${cfg.color}22; color:${cfg.color}">${e.relationship}</span> ${e.target.id || e.target} <span style="color:var(--text-muted)">(${e.frequency})</span></div>`;
-    });
-    html += `</div>`;
-  }
-
-  if (incoming.length > 0) {
-    html += `<div class="focus-section"><div class="focus-section-title">← 영향을 받는 원인</div>`;
-    incoming.sort((a,b) => b.frequency - a.frequency);
-    incoming.forEach(e => {
-      const cfg = REL_CONFIG[e.relationship] || {};
-      html += `<div class="focus-edge">${e.source.id || e.source} <span class="focus-edge-rel" style="background:${cfg.color}22; color:${cfg.color}">${e.relationship}</span> <span style="color:var(--text-muted)">(${e.frequency})</span></div>`;
-    });
-    html += `</div>`;
-  }
-
-  html += `<button class="focus-clear" onclick="focusedNode=null; applyFocus();">✕ 포커스 해제</button>`;
-  info.innerHTML = html;
-  panel.style.display = 'block';
-}
-
-// Background click to unfocus
-svg.on('click', () => {
-  if (focusedNode) {
-    focusedNode = null;
-    applyFocus();
-  }
-});
-
-// ============================================================
-// SEARCH
-// ============================================================
-document.getElementById('searchInput').addEventListener('input', (e) => {
-  const query = e.target.value.toLowerCase().trim();
-  const container = document.getElementById('searchResults');
-
-  if (query.length < 2) {
-    container.innerHTML = '';
-    return;
-  }
-
-  // Find matching nodes from current data
-  const allNodes = new Set();
-  rawData.forEach(d => {
-    if (d.frequency >= minFreq && d.num_papers >= minPapers && activeRels.has(d.relationship)) {
-      allNodes.add(d.cause);
-      allNodes.add(d.effect);
-    }
-  });
-
-  const matches = [...allNodes].filter(n => n.toLowerCase().includes(query)).sort().slice(0, 15);
-
-  if (matches.length === 0) {
-    container.innerHTML = '<div style="color:var(--text-muted); font-size:11px; padding:4px;">결과 없음</div>';
-    return;
-  }
-
-  container.innerHTML = matches.map(n =>
-    `<div class="search-result" onclick="focusedNode='${n.replace(/'/g, "\\'")}'; applyFocus(); document.getElementById('searchInput').value='${n.replace(/'/g, "\\'")}'; document.getElementById('searchResults').innerHTML='';">${n}</div>`
-  ).join('');
-});
 
 // ============================================================
 // INIT — 레포 CSV 자동 로드, 실패 시 샘플 데이터 사용
