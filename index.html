@@ -23,9 +23,6 @@
   --inhibits: #22c55e;
   --requires: #94a3b8;
   --associated: #475569;
-  --node-cause: #fbbf24;
-  --node-effect: #f87171;
-  --node-balanced: #60a5fa;
   --radius: 8px;
   --shadow: 0 4px 24px rgba(0,0,0,0.4);
 }
@@ -343,15 +340,17 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* === NODE STYLES === */
 .node-circle {
-  stroke: rgba(255,255,255,0.15);
+  stroke: rgba(255,255,255,0.2);
   stroke-width: 1.5px;
   cursor: pointer;
-  transition: stroke-width 0.15s;
+  transition: stroke-width 0.15s, filter 0.15s;
+  filter: drop-shadow(0 0 4px currentColor);
 }
 
 .node-circle:hover {
   stroke: #fff;
   stroke-width: 2.5px;
+  filter: drop-shadow(0 0 8px currentColor);
 }
 
 .node-label {
@@ -433,20 +432,28 @@ input[type="range"]::-webkit-slider-thumb {
 
     <!-- Node Legend -->
     <div class="panel">
-      <div class="panel-header">🔵 노드 범례</div>
+      <div class="panel-header">🔵 노드 카테고리</div>
       <div class="panel-body">
         <div class="node-legend">
           <div class="node-legend-item">
-            <div class="node-legend-dot" style="background:var(--node-cause)"></div>
-            <span>원인 역할 (out-degree 높음)</span>
+            <div class="node-legend-dot" style="background:#c4b5fd"></div>
+            <span>서열</span>
           </div>
           <div class="node-legend-item">
-            <div class="node-legend-dot" style="background:var(--node-effect)"></div>
-            <span>결과 역할 (in-degree 높음)</span>
+            <div class="node-legend-dot" style="background:#a78bfa"></div>
+            <span>구조</span>
           </div>
           <div class="node-legend-item">
-            <div class="node-legend-dot" style="background:var(--node-balanced)"></div>
-            <span>균형 (원인 ≈ 결과)</span>
+            <div class="node-legend-dot" style="background:#34d399"></div>
+            <span>제형</span>
+          </div>
+          <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:#fbbf24"></div>
+            <span>스트레스</span>
+          </div>
+          <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:#f87171"></div>
+            <span>안정성</span>
           </div>
           <div class="node-legend-item" style="margin-top:4px; padding-top:8px; border-top:1px solid var(--border);">
             <span style="color:var(--text-muted); font-size:11px;">노드 크기 = 총 언급 빈도 · 화살표 굵기 = 빈도</span>
@@ -504,6 +511,30 @@ const REL_GROUPS = {
   C: { label: '분해 메커니즘', count: 9 },
   D: { label: '무방향', count: 1 },
 };
+
+// 5개 카테고리 (안정성 예측 중심)
+const CATEGORY_COLORS = {
+  sequence:    '#c4b5fd',
+  structure:   '#a78bfa',
+  formulation: '#34d399',
+  stress:      '#fbbf24',
+  stability:   '#f87171',
+};
+const DEFAULT_CATEGORY = 'stability';
+
+// v3 CSV 호환 매핑
+const STRUCTURE_KW = ['domain','fab','fc ','fc-','hinge','patch','hydrophobic','charge patch','disulfide','conformation','folding','unfolding','tertiary','quaternary','beta-sheet','loop','framework','glycan shield'];
+function mapCategory(oldCat, name) {
+  if (CATEGORY_COLORS[oldCat]) return oldCat;
+  const lower = (name || '').toLowerCase();
+  if (oldCat === 'sequence_structure') {
+    if (STRUCTURE_KW.some(k => lower.includes(k))) return 'structure';
+    return 'sequence';
+  }
+  if (oldCat === 'formulation_factor') return 'formulation';
+  if (oldCat === 'stress_condition') return 'stress';
+  return 'stability';
+}
 
 // ============================================================
 // SAMPLE DATA (Step 2가 없어도 바로 데모 가능)
@@ -687,6 +718,7 @@ document.getElementById('csvInput').addEventListener('change', (e) => {
 });
 
 function parseCSV(text) {
+  text = text.replace(/^\ufeff/, '');  // BOM 제거
   const lines = text.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
   return lines.slice(1).map(line => {
@@ -722,6 +754,7 @@ function updateGraph() {
 
   // Build nodes and links
   const nodeMap = new Map();
+  const nodeCatCounts = {};
   const links = [];
 
   filtered.forEach(d => {
@@ -732,6 +765,18 @@ function updateGraph() {
     nodeMap.get(d.cause).total += d.frequency;
     nodeMap.get(d.effect).inW += d.frequency;
     nodeMap.get(d.effect).total += d.frequency;
+
+    // 카테고리 추적
+    if (d.category_cause) {
+      const mc = mapCategory(d.category_cause, d.cause);
+      if (!nodeCatCounts[d.cause]) nodeCatCounts[d.cause] = {};
+      nodeCatCounts[d.cause][mc] = (nodeCatCounts[d.cause][mc] || 0) + 1;
+    }
+    if (d.category_effect) {
+      const mc = mapCategory(d.category_effect, d.effect);
+      if (!nodeCatCounts[d.effect]) nodeCatCounts[d.effect] = {};
+      nodeCatCounts[d.effect][mc] = (nodeCatCounts[d.effect][mc] || 0) + 1;
+    }
 
     links.push({
       source: d.cause,
@@ -745,6 +790,27 @@ function updateGraph() {
   });
 
   const nodes = Array.from(nodeMap.values());
+  // 각 노드에 카테고리 배정 (최다 빈도, 없으면 키워드 기반 추정)
+  const SEQ_KW = ['residue','cdr','mutation','variant','glycosylation site','asn','asp','met','trp','sequence','vh','vl','vhh','scfv','nanobod','amino acid'];
+  const STR_KW = ['domain','fab','fc ','fc-','hinge','patch','hydrophobic','charge patch','disulfide','conformation','folding','unfolding','glycan shield','loop','framework'];
+  const FORM_KW = ['polysorbate','sucrose','trehalose','arginine','histidine','buffer','ph','concentration','nacl','mannitol','excipient','surfactant','lyophiliz','formulation'];
+  const STRESS_KW = ['thermal','agitation','light exposure','freeze-thaw','storage','mechanical stress','humidity','uv','shaking','temperature','stress'];
+  function guessCategory(name) {
+    const l = name.toLowerCase();
+    if (SEQ_KW.some(k => l.includes(k))) return 'sequence';
+    if (STR_KW.some(k => l.includes(k))) return 'structure';
+    if (FORM_KW.some(k => l.includes(k))) return 'formulation';
+    if (STRESS_KW.some(k => l.includes(k))) return 'stress';
+    return 'stability';
+  }
+  nodes.forEach(n => {
+    const counts = nodeCatCounts[n.id];
+    if (counts && Object.keys(counts).length > 0) {
+      n.category = Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
+    } else {
+      n.category = guessCategory(n.id);
+    }
+  });
 
   // Update stats
   const allPapers = new Set();
@@ -828,11 +894,7 @@ function updateGraph() {
   node.append('circle')
     .attr('class', 'node-circle')
     .attr('r', d => rScale(d.total))
-    .attr('fill', d => {
-      if (d.outW > d.inW * 1.3) return 'var(--node-cause)';
-      if (d.inW > d.outW * 1.3) return 'var(--node-effect)';
-      return 'var(--node-balanced)';
-    })
+    .attr('fill', d => CATEGORY_COLORS[d.category] || CATEGORY_COLORS[DEFAULT_CATEGORY])
     .attr('fill-opacity', 0.85)
     .on('mouseover', (event, d) => showNodeTooltip(event, d))
     .on('mousemove', (event) => moveTooltip(event))
@@ -848,10 +910,12 @@ function updateGraph() {
 // TOOLTIPS
 // ============================================================
 function showNodeTooltip(event, d) {
-  const role = d.outW > d.inW * 1.3 ? '원인(Cause)' : d.inW > d.outW * 1.3 ? '결과(Effect)' : '균형';
+  const catLabels = { sequence: '서열', structure: '구조', formulation: '제형', stress: '스트레스', stability: '안정성' };
+  const catLabel = catLabels[d.category] || d.category || '미분류';
+  const catColor = CATEGORY_COLORS[d.category] || '#888';
   tooltip.innerHTML = `
     <div class="tooltip-title">${d.id}</div>
-    <div class="tooltip-row"><span class="label">역할</span> ${role}</div>
+    <div class="tooltip-row"><span class="label">카테고리</span> <span style="color:${catColor}; font-weight:600;">${catLabel}</span></div>
     <div class="tooltip-row"><span class="label">총 언급</span> ${d.total}회</div>
     <div class="tooltip-row"><span class="label">원인↗</span> ${d.outW}회</div>
     <div class="tooltip-row"><span class="label">결과↙</span> ${d.inW}회</div>
@@ -890,7 +954,7 @@ const CSV_URL = 'https://raw.githubusercontent.com/STARG-LEE/mab-causal-network/
 
 async function init() {
   try {
-    const response = await fetch(CSV_URL);
+    const response = await fetch(CSV_URL + '?t=' + Date.now());
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const text = await response.text();
     const parsed = parseCSV(text);
