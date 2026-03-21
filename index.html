@@ -452,8 +452,16 @@ input[type="range"]::-webkit-slider-thumb {
             <span>스트레스</span>
           </div>
           <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:#38bdf8"></div>
+            <span>안정성 특성</span>
+          </div>
+          <div class="node-legend-item">
             <div class="node-legend-dot" style="background:#f87171"></div>
-            <span>안정성</span>
+            <span>분해 과정</span>
+          </div>
+          <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:#fb923c"></div>
+            <span>품질 결과</span>
           </div>
           <div class="node-legend-item" style="margin-top:4px; padding-top:8px; border-top:1px solid var(--border);">
             <span style="color:var(--text-muted); font-size:11px;">노드 크기 = 총 언급 빈도 · 화살표 굵기 = 빈도</span>
@@ -518,18 +526,24 @@ const REL_GROUPS = {
   D: { label: '무방향', count: 1 },
 };
 
-// 5개 카테고리 (안정성 예측 중심)
+// 7개 카테고리 (안정성 3분할)
 const CATEGORY_COLORS = {
-  sequence:    '#c4b5fd',
-  structure:   '#a78bfa',
-  formulation: '#34d399',
-  stress:      '#fbbf24',
-  stability:   '#f87171',
+  sequence:           '#c4b5fd',
+  structure:          '#a78bfa',
+  formulation:        '#34d399',
+  stress:             '#fbbf24',
+  stability_property: '#38bdf8',
+  degradation:        '#f87171',
+  quality_outcome:    '#fb923c',
 };
-const DEFAULT_CATEGORY = 'stability';
+const DEFAULT_CATEGORY = 'degradation';
 
 // v3 CSV 호환 매핑
-const STRUCTURE_KW = ['domain','fab','fc ','fc-','hinge','patch','hydrophobic','charge patch','disulfide','conformation','folding','unfolding','tertiary','quaternary','beta-sheet','loop','framework','glycan shield'];
+const STRUCTURE_KW = ['domain','fab','fc ','fc-','hinge','patch','hydrophobic','charge patch','disulfide','conformation','folding','tertiary','quaternary','beta-sheet','loop','framework','glycan shield'];
+const STAB_PROP_KW = ['conformational stability','thermal stability','colloidal stability','high stability','structural stability'];
+const DEGRAD_KW = ['aggregation','deamidation','oxidation','unfolding','fragmentation','self-association','adsorption','degradation','isomerization','precipitation'];
+const QUALITY_KW = ['charge variant','particle formation','particle count','immunogenicity','viscosity','high viscosity','turbidity','potency','hmw','sec monomer','monomer %','subvisible'];
+
 function mapCategory(oldCat, name) {
   if (CATEGORY_COLORS[oldCat]) return oldCat;
   const lower = (name || '').toLowerCase();
@@ -539,7 +553,11 @@ function mapCategory(oldCat, name) {
   }
   if (oldCat === 'formulation_factor') return 'formulation';
   if (oldCat === 'stress_condition') return 'stress';
-  return 'stability';
+  if (STAB_PROP_KW.some(k => lower.includes(k))) return 'stability_property';
+  if (lower === 'stability') return 'stability_property';
+  if (QUALITY_KW.some(k => lower.includes(k))) return 'quality_outcome';
+  if (DEGRAD_KW.some(k => lower.includes(k))) return 'degradation';
+  return DEFAULT_CATEGORY;
 }
 
 // ============================================================
@@ -967,7 +985,7 @@ function applyFocus() {
   panel.style.display = 'block';
   const incoming = lastLinks.filter(l => (typeof l.target === 'object' ? l.target.id : l.target) === focusedNode);
   const outgoing = lastLinks.filter(l => (typeof l.source === 'object' ? l.source.id : l.source) === focusedNode);
-  const catLabels = { sequence: '서열', structure: '구조', formulation: '제형', stress: '스트레스', stability: '안정성' };
+  const catLabels = { sequence:'서열', structure:'구조', formulation:'제형', stress:'스트레스', stability_property:'안정성 특성', degradation:'분해 과정', quality_outcome:'품질 결과' };
   const nd = lastNodes.find(n => n.id === focusedNode);
   const catLabel = catLabels[nd?.category] || nd?.category || '';
   const catColor = CATEGORY_COLORS[nd?.category] || '#888';
@@ -1007,7 +1025,7 @@ svg.on('click', () => clearFocus());
 // TOOLTIPS
 // ============================================================
 function showNodeTooltip(event, d) {
-  const catLabels = { sequence: '서열', structure: '구조', formulation: '제형', stress: '스트레스', stability: '안정성' };
+  const catLabels = { sequence:'서열', structure:'구조', formulation:'제형', stress:'스트레스', stability_property:'안정성 특성', degradation:'분해 과정', quality_outcome:'품질 결과' };
   const catLabel = catLabels[d.category] || d.category || '미분류';
   const catColor = CATEGORY_COLORS[d.category] || '#888';
   tooltip.innerHTML = `
