@@ -631,7 +631,7 @@ Object.entries(REL_CONFIG).forEach(([key, cfg]) => {
   defs.append('marker')
     .attr('id', `arrow-${key}`)
     .attr('viewBox', '0 -4 8 8')
-    .attr('refX', 22)
+    .attr('refX', 7)
     .attr('refY', 0)
     .attr('markerWidth', 6)
     .attr('markerHeight', 6)
@@ -839,6 +839,24 @@ function updateGraph() {
   const maxTotal = Math.max(...nodes.map(n => n.total), 1);
   const rScale = d3.scaleSqrt().domain([1, maxTotal]).range([6, 30]);
   const wScale = d3.scaleLinear().domain([1, maxFreq]).range([1, 7]);
+  // 각 노드에 반지름 저장
+  nodes.forEach(n => { n.r = rScale(n.total); });
+
+  // 링크 경로: 노드 가장자리에서 시작/끝 (화살표가 노드에 가려지지 않도록)
+  function linkPath(d) {
+    const sx = d.source.x, sy = d.source.y;
+    const tx = d.target.x, ty = d.target.y;
+    const dx = tx - sx, dy = ty - sy;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const sr = d.source.r || 6, tr = d.target.r || 6;
+    // 시작점: source 가장자리, 끝점: target 가장자리 (+ 화살표 여유)
+    const x1 = sx + (dx / dist) * sr;
+    const y1 = sy + (dy / dist) * sr;
+    const x2 = tx - (dx / dist) * (tr + 6);
+    const y2 = ty - (dy / dist) * (tr + 6);
+    const dr = dist * 1.5;
+    return `M${x1},${y1}A${dr},${dr} 0 0,1 ${x2},${y2}`;
+  }
 
   // Clear
   zoomGroup.selectAll('*').remove();
@@ -874,12 +892,7 @@ function updateGraph() {
     .attr('stroke-width', d => wScale(d.frequency))
     .attr('stroke-opacity', 0.6)
     .attr('marker-end', d => `url(#arrow-${d.relationship})`)
-    .attr('d', d => {
-      const dx = d.target.x - d.source.x;
-      const dy = d.target.y - d.source.y;
-      const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
-      return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
-    })
+    .attr('d', d => linkPath(d))
     .on('mouseover', (event, d) => showEdgeTooltip(event, d))
     .on('mousemove', (event) => moveTooltip(event))
     .on('mouseout', hideTooltip);
@@ -895,12 +908,7 @@ function updateGraph() {
         d.x = event.x; d.y = event.y;
         d3.select(event.sourceEvent.target.parentNode)
           .attr('transform', `translate(${d.x},${d.y})`);
-        link.attr('d', l => {
-          const dx = l.target.x - l.source.x;
-          const dy = l.target.y - l.source.y;
-          const dr = Math.sqrt(dx * dx + dy * dy) * 1.5;
-          return `M${l.source.x},${l.source.y}A${dr},${dr} 0 0,1 ${l.target.x},${l.target.y}`;
-        });
+        link.attr('d', l => linkPath(l));
       }));
 
   node.append('circle')
