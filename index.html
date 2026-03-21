@@ -631,7 +631,7 @@ Object.entries(REL_CONFIG).forEach(([key, cfg]) => {
   defs.append('marker')
     .attr('id', `arrow-${key}`)
     .attr('viewBox', '0 -4 8 8')
-    .attr('refX', 7)
+    .attr('refX', 8)
     .attr('refY', 0)
     .attr('markerWidth', 6)
     .attr('markerHeight', 6)
@@ -849,11 +849,10 @@ function updateGraph() {
     const dx = tx - sx, dy = ty - sy;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
     const sr = d.source.r || 6, tr = d.target.r || 6;
-    // 시작점: source 가장자리, 끝점: target 가장자리 (+ 화살표 여유)
     const x1 = sx + (dx / dist) * sr;
     const y1 = sy + (dy / dist) * sr;
-    const x2 = tx - (dx / dist) * (tr + 6);
-    const y2 = ty - (dy / dist) * (tr + 6);
+    const x2 = tx - (dx / dist) * tr;
+    const y2 = ty - (dy / dist) * tr;
     const dr = dist * 1.5;
     return `M${x1},${y1}A${dr},${dr} 0 0,1 ${x2},${y2}`;
   }
