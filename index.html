@@ -461,6 +461,12 @@ input[type="range"]::-webkit-slider-thumb {
         </div>
       </div>
     </div>
+
+    <!-- Focus Panel -->
+    <div class="panel" id="focusPanel" style="display:none;">
+      <div class="panel-header">🎯 선택된 노드</div>
+      <div class="panel-body" id="focusInfo" style="max-height:40vh; overflow-y:auto;"></div>
+    </div>
   </div>
 
   <!-- GRAPH -->
@@ -590,6 +596,11 @@ let activeRels = new Set(Object.keys(REL_CONFIG));
 let minFreq = 3;
 let minPapers = 3;
 let simulation = null;
+let focusedNode = null;
+let lastNodeSel = null;
+let lastLinkSel = null;
+let lastNodes = null;
+let lastLinks = null;
 
 // ============================================================
 // INIT
@@ -614,19 +625,20 @@ svg.call(d3.zoom()
   .on('zoom', (e) => zoomGroup.attr('transform', e.transform))
 );
 
-// Arrow markers
+// Arrow markers (크기 고정)
 const defs = svg.append('defs');
 Object.entries(REL_CONFIG).forEach(([key, cfg]) => {
   defs.append('marker')
     .attr('id', `arrow-${key}`)
-    .attr('viewBox', '0 -5 10 10')
-    .attr('refX', 20)
+    .attr('viewBox', '0 -4 8 8')
+    .attr('refX', 22)
     .attr('refY', 0)
-    .attr('markerWidth', 8)
-    .attr('markerHeight', 8)
+    .attr('markerWidth', 6)
+    .attr('markerHeight', 6)
     .attr('orient', 'auto')
+    .attr('markerUnits', 'userSpaceOnUse')
     .append('path')
-    .attr('d', 'M0,-4L10,0L0,4')
+    .attr('d', 'M0,-3L8,0L0,3')
     .attr('fill', cfg.color);
 });
 
@@ -898,13 +910,91 @@ function updateGraph() {
     .attr('fill-opacity', 0.85)
     .on('mouseover', (event, d) => showNodeTooltip(event, d))
     .on('mousemove', (event) => moveTooltip(event))
-    .on('mouseout', hideTooltip);
+    .on('mouseout', hideTooltip)
+    .on('click', (event, d) => {
+      event.stopPropagation();
+      if (focusedNode === d.id) { clearFocus(); } else { focusedNode = d.id; applyFocus(); }
+    });
 
   node.append('text')
     .attr('class', 'node-label')
     .attr('dy', d => rScale(d.total) + 14)
     .text(d => d.id.length > 25 ? d.id.slice(0, 23) + '…' : d.id);
+
+  // Store references for focus mode
+  lastNodeSel = node;
+  lastLinkSel = link;
+  lastNodes = nodes;
+  lastLinks = links;
+  if (focusedNode) applyFocus();
 }
+
+// ============================================================
+// FOCUS MODE
+// ============================================================
+function applyFocus() {
+  if (!focusedNode || !lastNodeSel || !lastLinkSel) return;
+  const connected = new Set([focusedNode]);
+  lastLinks.forEach(l => {
+    const sid = typeof l.source === 'object' ? l.source.id : l.source;
+    const tid = typeof l.target === 'object' ? l.target.id : l.target;
+    if (sid === focusedNode) connected.add(tid);
+    if (tid === focusedNode) connected.add(sid);
+  });
+  lastNodeSel.select('circle')
+    .attr('fill-opacity', d => connected.has(d.id) ? 0.95 : 0.08)
+    .attr('stroke', d => d.id === focusedNode ? '#fff' : 'rgba(255,255,255,0.15)')
+    .attr('stroke-width', d => d.id === focusedNode ? 3 : 1.5);
+  lastNodeSel.select('text')
+    .attr('fill-opacity', d => connected.has(d.id) ? 1 : 0.1);
+  lastLinkSel
+    .attr('stroke-opacity', d => {
+      const sid = typeof d.source === 'object' ? d.source.id : d.source;
+      const tid = typeof d.target === 'object' ? d.target.id : d.target;
+      return (sid === focusedNode || tid === focusedNode) ? 0.8 : 0.03;
+    });
+
+  // Show focus info panel
+  const panel = document.getElementById('focusPanel');
+  const info = document.getElementById('focusInfo');
+  panel.style.display = 'block';
+  const incoming = lastLinks.filter(l => (typeof l.target === 'object' ? l.target.id : l.target) === focusedNode);
+  const outgoing = lastLinks.filter(l => (typeof l.source === 'object' ? l.source.id : l.source) === focusedNode);
+  const catLabels = { sequence: '서열', structure: '구조', formulation: '제형', stress: '스트레스', stability: '안정성' };
+  const nd = lastNodes.find(n => n.id === focusedNode);
+  const catLabel = catLabels[nd?.category] || nd?.category || '';
+  const catColor = CATEGORY_COLORS[nd?.category] || '#888';
+  info.innerHTML = `
+    <div style="font-weight:600; font-size:13px; margin-bottom:6px;">${focusedNode}</div>
+    <div style="font-size:11px; color:${catColor}; margin-bottom:8px;">${catLabel}</div>
+    ${incoming.length > 0 ? `<div style="font-size:10px; color:var(--text-muted); margin-bottom:4px;">↘ 들어오는 관계 (${incoming.length})</div>` +
+      incoming.slice(0, 10).map(l => {
+        const cfg = REL_CONFIG[l.relationship] || {};
+        const src = typeof l.source === 'object' ? l.source.id : l.source;
+        return `<div style="font-size:11px; margin:2px 0; padding:3px 6px; border-radius:3px; background:var(--bg-primary);">${src} <span style="color:${cfg.color}; font-size:10px;">${cfg.symbol || '→'} ${l.relationship}</span></div>`;
+      }).join('') : ''}
+    ${outgoing.length > 0 ? `<div style="font-size:10px; color:var(--text-muted); margin-top:8px; margin-bottom:4px;">↗ 나가는 관계 (${outgoing.length})</div>` +
+      outgoing.slice(0, 10).map(l => {
+        const cfg = REL_CONFIG[l.relationship] || {};
+        const tgt = typeof l.target === 'object' ? l.target.id : l.target;
+        return `<div style="font-size:11px; margin:2px 0; padding:3px 6px; border-radius:3px; background:var(--bg-primary);"><span style="color:${cfg.color}; font-size:10px;">${l.relationship} ${cfg.symbol || '→'}</span> ${tgt}</div>`;
+      }).join('') : ''}
+    <div style="margin-top:8px; font-size:10px; color:var(--text-muted); cursor:pointer; text-decoration:underline;" onclick="clearFocus()">✕ 포커스 해제</div>
+  `;
+}
+
+function clearFocus() {
+  focusedNode = null;
+  if (lastNodeSel) {
+    lastNodeSel.select('circle').attr('fill-opacity', 0.85).attr('stroke', 'rgba(255,255,255,0.2)').attr('stroke-width', 1.5);
+    lastNodeSel.select('text').attr('fill-opacity', 1);
+  }
+  if (lastLinkSel) lastLinkSel.attr('stroke-opacity', 0.6);
+  document.getElementById('focusPanel').style.display = 'none';
+}
+
+// Click on background to clear focus
+svg.on('click', () => clearFocus());
 
 // ============================================================
 // TOOLTIPS
