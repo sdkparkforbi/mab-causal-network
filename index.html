@@ -452,12 +452,8 @@ input[type="range"]::-webkit-slider-thumb {
             <span>스트레스</span>
           </div>
           <div class="node-legend-item">
-            <div class="node-legend-dot" style="background:#38bdf8"></div>
-            <span>안정성 특성</span>
-          </div>
-          <div class="node-legend-item">
             <div class="node-legend-dot" style="background:#f87171"></div>
-            <span>분해 과정</span>
+            <span>안정성</span>
           </div>
           <div class="node-legend-item">
             <div class="node-legend-dot" style="background:#fb923c"></div>
@@ -526,23 +522,20 @@ const REL_GROUPS = {
   D: { label: '무방향', count: 1 },
 };
 
-// 7개 카테고리 (안정성 3분할)
+// 6개 카테고리
 const CATEGORY_COLORS = {
-  sequence:           '#c4b5fd',
-  structure:          '#a78bfa',
-  formulation:        '#34d399',
-  stress:             '#fbbf24',
-  stability_property: '#38bdf8',
-  degradation:        '#f87171',
-  quality_outcome:    '#fb923c',
+  sequence:        '#c4b5fd',
+  structure:       '#a78bfa',
+  formulation:     '#34d399',
+  stress:          '#fbbf24',
+  stability:       '#f87171',
+  quality_outcome: '#fb923c',
 };
-const DEFAULT_CATEGORY = 'degradation';
+const DEFAULT_CATEGORY = 'stability';
 
 // v3 CSV 호환 매핑
 const STRUCTURE_KW = ['domain','fab','fc ','fc-','hinge','patch','hydrophobic','charge patch','disulfide','conformation','folding','tertiary','quaternary','beta-sheet','loop','framework','glycan shield'];
-const STAB_PROP_KW = ['conformational stability','thermal stability','colloidal stability','high stability','structural stability'];
-const DEGRAD_KW = ['aggregation','deamidation','oxidation','unfolding','fragmentation','self-association','adsorption','degradation','isomerization','precipitation'];
-const QUALITY_KW = ['charge variant','particle formation','particle count','immunogenicity','viscosity','high viscosity','turbidity','potency','hmw','sec monomer','monomer %','subvisible'];
+const QUALITY_KW = ['charge variant','particle formation','particle count','immunogenicity','viscosity','high viscosity','turbidity','potency','hmw','sec monomer','monomer %','subvisible','efficacy','safety','toxicity','cytotoxicity','sensitivity','opalescence','bioactivity','binding affinity','quality outcome','thermal denaturation'];
 
 function mapCategory(oldCat, name) {
   if (CATEGORY_COLORS[oldCat]) return oldCat;
@@ -553,11 +546,9 @@ function mapCategory(oldCat, name) {
   }
   if (oldCat === 'formulation_factor') return 'formulation';
   if (oldCat === 'stress_condition') return 'stress';
-  if (STAB_PROP_KW.some(k => lower.includes(k))) return 'stability_property';
-  if (lower === 'stability') return 'stability_property';
+  if (oldCat === 'stability_property' || oldCat === 'degradation' || oldCat === 'degradation_pathway') return 'stability';
   if (QUALITY_KW.some(k => lower.includes(k))) return 'quality_outcome';
-  if (DEGRAD_KW.some(k => lower.includes(k))) return 'degradation';
-  return DEFAULT_CATEGORY;
+  return 'stability';
 }
 
 // ============================================================
@@ -658,6 +649,18 @@ Object.entries(REL_CONFIG).forEach(([key, cfg]) => {
     .append('path')
     .attr('d', 'M0,-3L8,0L0,3')
     .attr('fill', cfg.color);
+});
+
+// Focus mode arrows
+['#38bdf8', '#fb923c'].forEach((color, i) => {
+  defs.append('marker')
+    .attr('id', `arrow-focus-${i === 0 ? 'in' : 'out'}`)
+    .attr('viewBox', '0 -4 8 8')
+    .attr('refX', 8).attr('refY', 0)
+    .attr('markerWidth', 6).attr('markerHeight', 6)
+    .attr('orient', 'auto')
+    .attr('markerUnits', 'userSpaceOnUse')
+    .append('path').attr('d', 'M0,-3L8,0L0,3').attr('fill', color);
 });
 
 // ============================================================
@@ -960,51 +963,70 @@ function updateGraph() {
 function applyFocus() {
   if (!focusedNode || !lastNodeSel || !lastLinkSel) return;
   const connected = new Set([focusedNode]);
+  const inLinks = [], outLinks = [];
   lastLinks.forEach(l => {
     const sid = typeof l.source === 'object' ? l.source.id : l.source;
     const tid = typeof l.target === 'object' ? l.target.id : l.target;
-    if (sid === focusedNode) connected.add(tid);
-    if (tid === focusedNode) connected.add(sid);
+    if (tid === focusedNode) { connected.add(sid); inLinks.push(l); }
+    if (sid === focusedNode) { connected.add(tid); outLinks.push(l); }
   });
+
   lastNodeSel.select('circle')
-    .attr('fill-opacity', d => connected.has(d.id) ? 0.95 : 0.08)
+    .attr('fill-opacity', d => connected.has(d.id) ? 0.95 : 0.05)
     .attr('stroke', d => d.id === focusedNode ? '#fff' : 'rgba(255,255,255,0.15)')
     .attr('stroke-width', d => d.id === focusedNode ? 3 : 1.5);
   lastNodeSel.select('text')
-    .attr('fill-opacity', d => connected.has(d.id) ? 1 : 0.1);
+    .attr('fill-opacity', d => connected.has(d.id) ? 1 : 0.05);
+
+  const inSet = new Set(inLinks.map(l => (l.source.id||l.source) + '>' + (l.target.id||l.target)));
+  const outSet = new Set(outLinks.map(l => (l.source.id||l.source) + '>' + (l.target.id||l.target)));
+
   lastLinkSel
     .attr('stroke-opacity', d => {
-      const sid = typeof d.source === 'object' ? d.source.id : d.source;
-      const tid = typeof d.target === 'object' ? d.target.id : d.target;
-      return (sid === focusedNode || tid === focusedNode) ? 0.8 : 0.03;
+      const key = (d.source.id||d.source) + '>' + (d.target.id||d.target);
+      return (inSet.has(key) || outSet.has(key)) ? 0.85 : 0;
+    })
+    .attr('stroke', d => {
+      const key = (d.source.id||d.source) + '>' + (d.target.id||d.target);
+      if (inSet.has(key)) return '#38bdf8';
+      if (outSet.has(key)) return '#fb923c';
+      return 'none';
+    })
+    .attr('stroke-width', d => {
+      const key = (d.source.id||d.source) + '>' + (d.target.id||d.target);
+      return (inSet.has(key) || outSet.has(key)) ? 2.5 : 0;
+    })
+    .attr('marker-end', d => {
+      const key = (d.source.id||d.source) + '>' + (d.target.id||d.target);
+      if (inSet.has(key)) return 'url(#arrow-focus-in)';
+      if (outSet.has(key)) return 'url(#arrow-focus-out)';
+      return 'none';
     });
 
-  // Show focus info panel
+  // Info panel
   const panel = document.getElementById('focusPanel');
   const info = document.getElementById('focusInfo');
   panel.style.display = 'block';
-  const incoming = lastLinks.filter(l => (typeof l.target === 'object' ? l.target.id : l.target) === focusedNode);
-  const outgoing = lastLinks.filter(l => (typeof l.source === 'object' ? l.source.id : l.source) === focusedNode);
-  const catLabels = { sequence:'서열', structure:'구조', formulation:'제형', stress:'스트레스', stability_property:'안정성 특성', degradation:'분해 과정', quality_outcome:'품질 결과' };
+  const catLabels = { sequence:'서열', structure:'구조', formulation:'제형', stress:'스트레스', stability:'안정성', quality_outcome:'품질 결과' };
   const nd = lastNodes.find(n => n.id === focusedNode);
   const catLabel = catLabels[nd?.category] || nd?.category || '';
   const catColor = CATEGORY_COLORS[nd?.category] || '#888';
   info.innerHTML = `
     <div style="font-weight:600; font-size:13px; margin-bottom:6px;">${focusedNode}</div>
     <div style="font-size:11px; color:${catColor}; margin-bottom:8px;">${catLabel}</div>
-    ${incoming.length > 0 ? `<div style="font-size:10px; color:var(--text-muted); margin-bottom:4px;">↘ 들어오는 관계 (${incoming.length})</div>` +
-      incoming.slice(0, 10).map(l => {
+    ${inLinks.length > 0 ? `<div style="font-size:10px; color:#38bdf8; margin-bottom:4px; font-weight:600;">← 원인 (${inLinks.length})</div>` +
+      inLinks.sort((a,b) => b.frequency - a.frequency).slice(0, 15).map(l => {
         const cfg = REL_CONFIG[l.relationship] || {};
         const src = typeof l.source === 'object' ? l.source.id : l.source;
-        return `<div style="font-size:11px; margin:2px 0; padding:3px 6px; border-radius:3px; background:var(--bg-primary);">${src} <span style="color:${cfg.color}; font-size:10px;">${cfg.symbol || '→'} ${l.relationship}</span></div>`;
+        return `<div style="font-size:11px; margin:2px 0; padding:3px 6px; border-radius:3px; background:var(--bg-primary);">${src} <span style="color:#38bdf8; font-size:10px;">${l.relationship}</span> <span style="color:var(--text-muted);">(${l.frequency})</span></div>`;
       }).join('') : ''}
-    ${outgoing.length > 0 ? `<div style="font-size:10px; color:var(--text-muted); margin-top:8px; margin-bottom:4px;">↗ 나가는 관계 (${outgoing.length})</div>` +
-      outgoing.slice(0, 10).map(l => {
+    ${outLinks.length > 0 ? `<div style="font-size:10px; color:#fb923c; margin-top:8px; margin-bottom:4px; font-weight:600;">→ 결과 (${outLinks.length})</div>` +
+      outLinks.sort((a,b) => b.frequency - a.frequency).slice(0, 15).map(l => {
         const cfg = REL_CONFIG[l.relationship] || {};
         const tgt = typeof l.target === 'object' ? l.target.id : l.target;
-        return `<div style="font-size:11px; margin:2px 0; padding:3px 6px; border-radius:3px; background:var(--bg-primary);"><span style="color:${cfg.color}; font-size:10px;">${l.relationship} ${cfg.symbol || '→'}</span> ${tgt}</div>`;
+        return `<div style="font-size:11px; margin:2px 0; padding:3px 6px; border-radius:3px; background:var(--bg-primary);"><span style="color:#fb923c; font-size:10px;">${l.relationship}</span> ${tgt} <span style="color:var(--text-muted);">(${l.frequency})</span></div>`;
       }).join('') : ''}
-    <div style="margin-top:8px; font-size:10px; color:var(--text-muted); cursor:pointer; text-decoration:underline;" onclick="clearFocus()">✕ 포커스 해제</div>
+    <div style="margin-top:8px; font-size:10px; color:var(--text-muted); cursor:pointer; text-decoration:underline;" onclick="clearFocus()">포커스 해제</div>
   `;
 }
 
@@ -1014,7 +1036,16 @@ function clearFocus() {
     lastNodeSel.select('circle').attr('fill-opacity', 0.85).attr('stroke', 'rgba(255,255,255,0.2)').attr('stroke-width', 1.5);
     lastNodeSel.select('text').attr('fill-opacity', 1);
   }
-  if (lastLinkSel) lastLinkSel.attr('stroke-opacity', 0.6);
+  if (lastLinkSel) {
+    lastLinkSel
+      .attr('stroke-opacity', 0.6)
+      .attr('stroke', d => REL_CONFIG[d.relationship]?.color || '#475569')
+      .attr('stroke-width', d => {
+        const maxF = Math.max(...lastLinks.map(l => l.frequency), 1);
+        return d3.scaleLinear().domain([1, maxF]).range([1, 7])(d.frequency);
+      })
+      .attr('marker-end', d => `url(#arrow-${d.relationship})`);
+  }
   document.getElementById('focusPanel').style.display = 'none';
 }
 
@@ -1025,7 +1056,7 @@ svg.on('click', () => clearFocus());
 // TOOLTIPS
 // ============================================================
 function showNodeTooltip(event, d) {
-  const catLabels = { sequence:'서열', structure:'구조', formulation:'제형', stress:'스트레스', stability_property:'안정성 특성', degradation:'분해 과정', quality_outcome:'품질 결과' };
+  const catLabels = { sequence:'서열', structure:'구조', formulation:'제형', stress:'스트레스', stability:'안정성', quality_outcome:'품질 결과' };
   const catLabel = catLabels[d.category] || d.category || '미분류';
   const catColor = CATEGORY_COLORS[d.category] || '#888';
   tooltip.innerHTML = `
