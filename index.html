@@ -962,48 +962,79 @@ function updateGraph() {
 // ============================================================
 function applyFocus() {
   if (!focusedNode || !lastNodeSel || !lastLinkSel) return;
-  const connected = new Set([focusedNode]);
-  const inLinks = [], outLinks = [];
+  const getId = x => typeof x === 'object' ? x.id : x;
+
+  // === 1-hop ===
+  const in1 = [], out1 = [];
   lastLinks.forEach(l => {
-    const sid = typeof l.source === 'object' ? l.source.id : l.source;
-    const tid = typeof l.target === 'object' ? l.target.id : l.target;
-    if (tid === focusedNode) { connected.add(sid); inLinks.push(l); }
-    if (sid === focusedNode) { connected.add(tid); outLinks.push(l); }
+    const sid = getId(l.source), tid = getId(l.target);
+    if (tid === focusedNode) in1.push(l);
+    if (sid === focusedNode) out1.push(l);
   });
+  const hop1nodes = new Set([focusedNode]);
+  in1.forEach(l => hop1nodes.add(getId(l.source)));
+  out1.forEach(l => hop1nodes.add(getId(l.target)));
+
+  // === 2-hop ===
+  const in2 = [], out2 = [];
+  lastLinks.forEach(l => {
+    const sid = getId(l.source), tid = getId(l.target);
+    if (hop1nodes.has(sid) && sid !== focusedNode && !hop1nodes.has(tid)) out2.push(l);
+    if (hop1nodes.has(tid) && tid !== focusedNode && !hop1nodes.has(sid)) in2.push(l);
+  });
+  const hop2nodes = new Set();
+  in2.forEach(l => hop2nodes.add(getId(l.source)));
+  out2.forEach(l => hop2nodes.add(getId(l.target)));
+
+  const lk = l => getId(l.source) + '>' + getId(l.target);
+  const in1Set = new Set(in1.map(lk));
+  const out1Set = new Set(out1.map(lk));
+  const in2Set = new Set(in2.map(lk));
+  const out2Set = new Set(out2.map(lk));
 
   lastNodeSel.select('circle')
-    .attr('fill-opacity', d => connected.has(d.id) ? 0.95 : 0.05)
+    .attr('fill-opacity', d => {
+      if (d.id === focusedNode) return 1;
+      if (hop1nodes.has(d.id)) return 0.9;
+      if (hop2nodes.has(d.id)) return 0.5;
+      return 0.04;
+    })
     .attr('stroke', d => d.id === focusedNode ? '#fff' : 'rgba(255,255,255,0.15)')
     .attr('stroke-width', d => d.id === focusedNode ? 3 : 1.5);
   lastNodeSel.select('text')
-    .attr('fill-opacity', d => connected.has(d.id) ? 1 : 0.05);
-
-  const inSet = new Set(inLinks.map(l => (l.source.id||l.source) + '>' + (l.target.id||l.target)));
-  const outSet = new Set(outLinks.map(l => (l.source.id||l.source) + '>' + (l.target.id||l.target)));
+    .attr('fill-opacity', d => {
+      if (d.id === focusedNode || hop1nodes.has(d.id)) return 1;
+      if (hop2nodes.has(d.id)) return 0.6;
+      return 0.04;
+    });
 
   lastLinkSel
     .attr('stroke-opacity', d => {
-      const key = (d.source.id||d.source) + '>' + (d.target.id||d.target);
-      return (inSet.has(key) || outSet.has(key)) ? 0.85 : 0;
+      const k = lk(d);
+      if (in1Set.has(k) || out1Set.has(k)) return 0.85;
+      if (in2Set.has(k) || out2Set.has(k)) return 0.4;
+      return 0;
     })
     .attr('stroke', d => {
-      const key = (d.source.id||d.source) + '>' + (d.target.id||d.target);
-      if (inSet.has(key)) return '#38bdf8';
-      if (outSet.has(key)) return '#fb923c';
+      const k = lk(d);
+      if (in1Set.has(k) || in2Set.has(k)) return '#38bdf8';
+      if (out1Set.has(k) || out2Set.has(k)) return '#fb923c';
       return 'none';
     })
     .attr('stroke-width', d => {
-      const key = (d.source.id||d.source) + '>' + (d.target.id||d.target);
-      return (inSet.has(key) || outSet.has(key)) ? 2.5 : 0;
+      const k = lk(d);
+      if (in1Set.has(k) || out1Set.has(k)) return 2.5;
+      if (in2Set.has(k) || out2Set.has(k)) return 1.5;
+      return 0;
     })
     .attr('marker-end', d => {
-      const key = (d.source.id||d.source) + '>' + (d.target.id||d.target);
-      if (inSet.has(key)) return 'url(#arrow-focus-in)';
-      if (outSet.has(key)) return 'url(#arrow-focus-out)';
+      const k = lk(d);
+      if (in1Set.has(k) || in2Set.has(k)) return 'url(#arrow-focus-in)';
+      if (out1Set.has(k) || out2Set.has(k)) return 'url(#arrow-focus-out)';
       return 'none';
     });
 
-  // Info panel
+  // Info panel with chains
   const panel = document.getElementById('focusPanel');
   const info = document.getElementById('focusInfo');
   panel.style.display = 'block';
@@ -1011,23 +1042,41 @@ function applyFocus() {
   const nd = lastNodes.find(n => n.id === focusedNode);
   const catLabel = catLabels[nd?.category] || nd?.category || '';
   const catColor = CATEGORY_COLORS[nd?.category] || '#888';
-  info.innerHTML = `
-    <div style="font-weight:600; font-size:13px; margin-bottom:6px;">${focusedNode}</div>
-    <div style="font-size:11px; color:${catColor}; margin-bottom:8px;">${catLabel}</div>
-    ${inLinks.length > 0 ? `<div style="font-size:10px; color:#38bdf8; margin-bottom:4px; font-weight:600;">← 원인 (${inLinks.length})</div>` +
-      inLinks.sort((a,b) => b.frequency - a.frequency).slice(0, 15).map(l => {
-        const cfg = REL_CONFIG[l.relationship] || {};
-        const src = typeof l.source === 'object' ? l.source.id : l.source;
-        return `<div style="font-size:11px; margin:2px 0; padding:3px 6px; border-radius:3px; background:var(--bg-primary);">${src} <span style="color:#38bdf8; font-size:10px;">${l.relationship}</span> <span style="color:var(--text-muted);">(${l.frequency})</span></div>`;
-      }).join('') : ''}
-    ${outLinks.length > 0 ? `<div style="font-size:10px; color:#fb923c; margin-top:8px; margin-bottom:4px; font-weight:600;">→ 결과 (${outLinks.length})</div>` +
-      outLinks.sort((a,b) => b.frequency - a.frequency).slice(0, 15).map(l => {
-        const cfg = REL_CONFIG[l.relationship] || {};
-        const tgt = typeof l.target === 'object' ? l.target.id : l.target;
-        return `<div style="font-size:11px; margin:2px 0; padding:3px 6px; border-radius:3px; background:var(--bg-primary);"><span style="color:#fb923c; font-size:10px;">${l.relationship}</span> ${tgt} <span style="color:var(--text-muted);">(${l.frequency})</span></div>`;
-      }).join('') : ''}
-    <div style="margin-top:8px; font-size:10px; color:var(--text-muted); cursor:pointer; text-decoration:underline;" onclick="clearFocus()">포커스 해제</div>
-  `;
+  const getCat = id => { const n = lastNodes.find(x => x.id === id); return catLabels[n?.category] || ''; };
+
+  let html = `<div style="font-weight:600; font-size:13px; margin-bottom:6px;">${focusedNode}</div>`;
+  html += `<div style="font-size:11px; color:${catColor}; margin-bottom:10px;">${catLabel}</div>`;
+
+  if (out1.length > 0) {
+    html += `<div style="font-size:10px; color:#fb923c; margin-bottom:4px; font-weight:600;">-> 영향 체인 (${out1.length})</div>`;
+    out1.sort((a,b) => b.frequency - a.frequency);
+    out1.slice(0, 15).forEach(e => {
+      const tgt = getId(e.target);
+      html += `<div style="font-size:11px; margin:2px 0; padding:3px 6px; border-radius:3px; background:var(--bg-primary);"><span style="color:#fb923c;">${e.relationship}</span> -> ${tgt} <span style="color:var(--text-muted);font-size:9px;">[${getCat(tgt)}]</span></div>`;
+      const next = out2.filter(l2 => getId(l2.source) === tgt);
+      next.sort((a,b) => b.frequency - a.frequency).slice(0, 3).forEach(e2 => {
+        const tgt2 = getId(e2.target);
+        html += `<div style="font-size:10px; margin-left:16px; padding:2px 0; color:var(--text-muted);">  -> <span style="color:#fb923c80;">${e2.relationship}</span> -> ${tgt2} <span style="font-size:9px;">[${getCat(tgt2)}]</span></div>`;
+      });
+    });
+  }
+
+  if (in1.length > 0) {
+    html += `<div style="font-size:10px; color:#38bdf8; margin-top:8px; margin-bottom:4px; font-weight:600;"><- 원인 체인 (${in1.length})</div>`;
+    in1.sort((a,b) => b.frequency - a.frequency);
+    in1.slice(0, 15).forEach(e => {
+      const src = getId(e.source);
+      html += `<div style="font-size:11px; margin:2px 0; padding:3px 6px; border-radius:3px; background:var(--bg-primary);">${src} <span style="color:var(--text-muted);font-size:9px;">[${getCat(src)}]</span> <span style="color:#38bdf8;">${e.relationship}</span></div>`;
+      const prev = in2.filter(l2 => getId(l2.target) === src);
+      prev.sort((a,b) => b.frequency - a.frequency).slice(0, 3).forEach(e2 => {
+        const src2 = getId(e2.source);
+        html += `<div style="font-size:10px; margin-left:16px; padding:2px 0; color:var(--text-muted);">  ${src2} <span style="font-size:9px;">[${getCat(src2)}]</span> <span style="color:#38bdf880;">${e2.relationship}</span> -></div>`;
+      });
+    });
+  }
+
+  html += `<div style="margin-top:8px; font-size:10px; color:var(--text-muted); cursor:pointer; text-decoration:underline;" onclick="clearFocus()">포커스 해제</div>`;
+  info.innerHTML = html;
 }
 
 function clearFocus() {
