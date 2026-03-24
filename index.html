@@ -611,6 +611,21 @@ let lastLinkSel = null;
 let lastNodes = null;
 let lastLinks = null;
 
+// 링크 경로: 노드 가장자리에서 시작/끝
+function linkPath(d) {
+  const sx = d.source.x, sy = d.source.y;
+  const tx = d.target.x, ty = d.target.y;
+  const dx = tx - sx, dy = ty - sy;
+  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+  const sr = d.source.r || 6, tr = d.target.r || 6;
+  const x1 = sx + (dx / dist) * sr;
+  const y1 = sy + (dy / dist) * sr;
+  const x2 = tx - (dx / dist) * tr;
+  const y2 = ty - (dy / dist) * tr;
+  const dr = dist * 1.5;
+  return `M${x1},${y1}A${dr},${dr} 0 0,1 ${x2},${y2}`;
+}
+
 // ============================================================
 // INIT
 // ============================================================
@@ -863,21 +878,6 @@ function updateGraph() {
   // 각 노드에 반지름 저장
   nodes.forEach(n => { n.r = rScale(n.total); });
 
-  // 링크 경로: 노드 가장자리에서 시작/끝 (화살표가 노드에 가려지지 않도록)
-  function linkPath(d) {
-    const sx = d.source.x, sy = d.source.y;
-    const tx = d.target.x, ty = d.target.y;
-    const dx = tx - sx, dy = ty - sy;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const sr = d.source.r || 6, tr = d.target.r || 6;
-    const x1 = sx + (dx / dist) * sr;
-    const y1 = sy + (dy / dist) * sr;
-    const x2 = tx - (dx / dist) * tr;
-    const y2 = ty - (dy / dist) * tr;
-    const dr = dist * 1.5;
-    return `M${x1},${y1}A${dr},${dr} 0 0,1 ${x2},${y2}`;
-  }
-
   // Clear
   zoomGroup.selectAll('*').remove();
 
@@ -1093,7 +1093,8 @@ function clearFocus() {
         const maxF = Math.max(...lastLinks.map(l => l.frequency), 1);
         return d3.scaleLinear().domain([1, maxF]).range([1, 7])(d.frequency);
       })
-      .attr('marker-end', d => `url(#arrow-${d.relationship})`);
+      .attr('marker-end', d => `url(#arrow-${d.relationship})`)
+      .attr('d', d => linkPath(d));
   }
   document.getElementById('focusPanel').style.display = 'none';
 }
