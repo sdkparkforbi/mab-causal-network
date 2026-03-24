@@ -971,16 +971,16 @@ function applyFocus() {
     if (tid === focusedNode) in1.push(l);
     if (sid === focusedNode) out1.push(l);
   });
-  const hop1nodes = new Set([focusedNode]);
-  in1.forEach(l => hop1nodes.add(getId(l.source)));
-  out1.forEach(l => hop1nodes.add(getId(l.target)));
+  const hop1in = new Set(in1.map(l => getId(l.source)));
+  const hop1out = new Set(out1.map(l => getId(l.target)));
+  const hop1nodes = new Set([focusedNode, ...hop1in, ...hop1out]);
 
-  // === 2-hop ===
+  // === 2-hop: 같은 방향으로만 ===
   const in2 = [], out2 = [];
   lastLinks.forEach(l => {
     const sid = getId(l.source), tid = getId(l.target);
-    if (hop1nodes.has(sid) && sid !== focusedNode && !hop1nodes.has(tid)) out2.push(l);
-    if (hop1nodes.has(tid) && tid !== focusedNode && !hop1nodes.has(sid)) in2.push(l);
+    if (hop1out.has(sid) && !hop1nodes.has(tid)) out2.push(l);
+    if (hop1in.has(tid) && !hop1nodes.has(sid)) in2.push(l);
   });
   const hop2nodes = new Set();
   in2.forEach(l => hop2nodes.add(getId(l.source)));
