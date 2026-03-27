@@ -462,6 +462,18 @@ input[type="range"]::-webkit-slider-thumb {
           <div class="node-legend-item" style="margin-top:4px; padding-top:8px; border-top:1px solid var(--border);">
             <span style="color:var(--text-muted); font-size:11px;">노드 크기 = 총 언급 빈도 · 화살표 굵기 = 빈도</span>
           </div>
+          <div class="node-legend-item" style="margin-top:4px; padding-top:8px; border-top:1px solid var(--border);">
+            <div class="node-legend-dot" style="background:#22c55e"></div>
+            <span style="font-size:11px;">억제/안정화 (초록)</span>
+          </div>
+          <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:#ef4444"></div>
+            <span style="font-size:11px;">촉진/분해 (빨강)</span>
+          </div>
+          <div class="node-legend-item">
+            <div class="node-legend-dot" style="background:#94a3b8"></div>
+            <span style="font-size:11px;">중립/상관 (회색)</span>
+          </div>
         </div>
       </div>
     </div>
@@ -487,32 +499,32 @@ input[type="range"]::-webkit-slider-thumb {
 // CONFIG
 // ============================================================
 const REL_CONFIG = {
-  // Group A: 범용 인과 (9개) — 빨강/파랑/보라 계열
-  stabilizes:    { color: '#10b981', label: '안정화 (stabilizes)',      symbol: '⊕', group: 'A' },
-  destabilizes:  { color: '#ef4444', label: '불안정화 (destabilizes)',   symbol: '⊖', group: 'A' },
-  increases:     { color: '#f97316', label: '증가 (increases)',         symbol: '↑', group: 'A' },
-  decreases:     { color: '#3b82f6', label: '감소 (decreases)',         symbol: '↓', group: 'A' },
-  inhibits:      { color: '#06b6d4', label: '억제 (inhibits)',          symbol: '⊣', group: 'A' },
-  promotes:      { color: '#e11d48', label: '촉진 (promotes)',          symbol: '»', group: 'A' },
-  induces:       { color: '#dc2626', label: '유발 (induces)',           symbol: '⇒', group: 'A' },
-  prevents:      { color: '#0ea5e9', label: '차단 (prevents)',          symbol: '⊘', group: 'A' },
-  requires:      { color: '#8b5cf6', label: '필요 (requires)',          symbol: '⊂', group: 'A' },
-  // Group B: 구조/결합 (3개) — 청록 계열
-  modifies:      { color: '#14b8a6', label: '구조변형 (modifies)',       symbol: '~>', group: 'B' },
-  binds:         { color: '#2dd4bf', label: '결합 (binds)',             symbol: '⊷',  group: 'B' },
-  shields:       { color: '#5eead4', label: '차폐 (shields)',           symbol: '▷',  group: 'B' },
-  // Group C: 분해 메커니즘 (9개) — 주황/갈색/진한 계열
-  aggregates:    { color: '#b91c1c', label: '응집 (aggregates)',        symbol: 'Ag', group: 'C' },
-  oxidizes:      { color: '#c2410c', label: '산화 (oxidizes)',          symbol: 'Ox', group: 'C' },
-  deamidates:    { color: '#a16207', label: '탈아미드화 (deamidates)',    symbol: 'Da', group: 'C' },
-  isomerizes:    { color: '#92400e', label: '이성질화 (isomerizes)',      symbol: 'Is', group: 'C' },
-  fragments:     { color: '#9f1239', label: '단편화 (fragments)',        symbol: '✂',  group: 'C' },
-  unfolds:       { color: '#7e22ce', label: '언폴딩 (unfolds)',          symbol: 'Un', group: 'C' },
-  adsorbs:       { color: '#6d28d9', label: '흡착 (adsorbs)',           symbol: 'Ad', group: 'C' },
-  precipitates:  { color: '#4338ca', label: '침전 (precipitates)',       symbol: 'Pp', group: 'C' },
-  degrades:      { color: '#78350f', label: '분해 (degrades)',          symbol: 'Dg', group: 'C' },
+  // Group A: 범용 인과 (9개)
+  stabilizes:    { color: '#22c55e', label: '안정화 (stabilizes)',      symbol: '⊕', group: 'A', effect: 'positive' },
+  destabilizes:  { color: '#ef4444', label: '불안정화 (destabilizes)',   symbol: '⊖', group: 'A', effect: 'negative' },
+  increases:     { color: '#ef4444', label: '증가 (increases)',         symbol: '↑', group: 'A', effect: 'negative' },
+  decreases:     { color: '#22c55e', label: '감소 (decreases)',         symbol: '↓', group: 'A', effect: 'positive' },
+  inhibits:      { color: '#22c55e', label: '억제 (inhibits)',          symbol: '⊣', group: 'A', effect: 'positive' },
+  promotes:      { color: '#ef4444', label: '촉진 (promotes)',          symbol: '»', group: 'A', effect: 'negative' },
+  induces:       { color: '#ef4444', label: '유발 (induces)',           symbol: '⇒', group: 'A', effect: 'negative' },
+  prevents:      { color: '#22c55e', label: '차단 (prevents)',          symbol: '⊘', group: 'A', effect: 'positive' },
+  requires:      { color: '#94a3b8', label: '필요 (requires)',          symbol: '⊂', group: 'A', effect: 'neutral' },
+  // Group B: 구조/결합 (3개)
+  modifies:      { color: '#94a3b8', label: '구조변형 (modifies)',       symbol: '~>', group: 'B', effect: 'neutral' },
+  binds:         { color: '#94a3b8', label: '결합 (binds)',             symbol: '⊷',  group: 'B', effect: 'neutral' },
+  shields:       { color: '#22c55e', label: '차폐 (shields)',           symbol: '▷',  group: 'B', effect: 'positive' },
+  // Group C: 분해 메커니즘 (9개)
+  aggregates:    { color: '#ef4444', label: '응집 (aggregates)',        symbol: 'Ag', group: 'C', effect: 'negative' },
+  oxidizes:      { color: '#ef4444', label: '산화 (oxidizes)',          symbol: 'Ox', group: 'C', effect: 'negative' },
+  deamidates:    { color: '#ef4444', label: '탈아미드화 (deamidates)',    symbol: 'Da', group: 'C', effect: 'negative' },
+  isomerizes:    { color: '#ef4444', label: '이성질화 (isomerizes)',      symbol: 'Is', group: 'C', effect: 'negative' },
+  fragments:     { color: '#ef4444', label: '단편화 (fragments)',        symbol: '✂',  group: 'C', effect: 'negative' },
+  unfolds:       { color: '#ef4444', label: '언폴딩 (unfolds)',          symbol: 'Un', group: 'C', effect: 'negative' },
+  adsorbs:       { color: '#ef4444', label: '흡착 (adsorbs)',           symbol: 'Ad', group: 'C', effect: 'negative' },
+  precipitates:  { color: '#ef4444', label: '침전 (precipitates)',       symbol: 'Pp', group: 'C', effect: 'negative' },
+  degrades:      { color: '#ef4444', label: '분해 (degrades)',          symbol: 'Dg', group: 'C', effect: 'negative' },
   // Group D: 무방향 (1개)
-  correlates:    { color: '#475569', label: '상관관계 (correlates)',      symbol: '~',  group: 'D' },
+  correlates:    { color: '#94a3b8', label: '상관관계 (correlates)',      symbol: '~',  group: 'D', effect: 'neutral' },
 };
 
 const REL_GROUPS = {
@@ -654,15 +666,15 @@ const defs = svg.append('defs');
 Object.entries(REL_CONFIG).forEach(([key, cfg]) => {
   defs.append('marker')
     .attr('id', `arrow-${key}`)
-    .attr('viewBox', '0 -4 8 8')
-    .attr('refX', 8)
+    .attr('viewBox', '0 -5 10 10')
+    .attr('refX', 10)
     .attr('refY', 0)
-    .attr('markerWidth', 6)
-    .attr('markerHeight', 6)
+    .attr('markerWidth', 10)
+    .attr('markerHeight', 10)
     .attr('orient', 'auto')
     .attr('markerUnits', 'userSpaceOnUse')
     .append('path')
-    .attr('d', 'M0,-3L8,0L0,3')
+    .attr('d', 'M0,-4L10,0L0,4')
     .attr('fill', cfg.color);
 });
 
@@ -670,12 +682,12 @@ Object.entries(REL_CONFIG).forEach(([key, cfg]) => {
 ['#38bdf8', '#fb923c'].forEach((color, i) => {
   defs.append('marker')
     .attr('id', `arrow-focus-${i === 0 ? 'in' : 'out'}`)
-    .attr('viewBox', '0 -4 8 8')
-    .attr('refX', 8).attr('refY', 0)
-    .attr('markerWidth', 6).attr('markerHeight', 6)
+    .attr('viewBox', '0 -5 10 10')
+    .attr('refX', 10).attr('refY', 0)
+    .attr('markerWidth', 10).attr('markerHeight', 10)
     .attr('orient', 'auto')
     .attr('markerUnits', 'userSpaceOnUse')
-    .append('path').attr('d', 'M0,-3L8,0L0,3').attr('fill', color);
+    .append('path').attr('d', 'M0,-4L10,0L0,4').attr('fill', color);
 });
 
 // ============================================================
@@ -964,6 +976,9 @@ function applyFocus() {
   if (!focusedNode || !lastNodeSel || !lastLinkSel) return;
   const getId = x => typeof x === 'object' ? x.id : x;
 
+  // 기존 라벨 제거
+  zoomGroup.selectAll('.focus-label').remove();
+
   // === 1-hop ===
   const in1 = [], out1 = [];
   lastLinks.forEach(l => {
@@ -1034,6 +1049,33 @@ function applyFocus() {
       return 'none';
     });
 
+  // === 엣지 라벨 (1홉 엣지에만) ===
+  const allFocusEdges = [...in1, ...out1];
+  allFocusEdges.forEach(d => {
+    const sx = d.source.x, sy = d.source.y, tx = d.target.x, ty = d.target.y;
+    const mx = (sx + tx) / 2, my = (sy + ty) / 2;
+    const dx = tx - sx, dy = ty - sy;
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    const k = lk(d);
+    const isIn = in1Set.has(k);
+    const offset = isIn ? -12 : 12;
+    const nx = -dy / dist * offset, ny = dx / dist * offset;
+    const color = isIn ? '#38bdf8' : '#fb923c';
+    zoomGroup.append('text')
+      .attr('class', 'focus-label')
+      .attr('x', mx + nx)
+      .attr('y', my + ny)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'central')
+      .attr('fill', color)
+      .attr('font-size', 10)
+      .attr('font-weight', 600)
+      .attr('paint-order', 'stroke')
+      .attr('stroke', '#0f172a')
+      .attr('stroke-width', 3)
+      .text(d.relationship);
+  });
+
   // Info panel with chains
   const panel = document.getElementById('focusPanel');
   const info = document.getElementById('focusInfo');
@@ -1081,6 +1123,7 @@ function applyFocus() {
 
 function clearFocus() {
   focusedNode = null;
+  zoomGroup.selectAll('.focus-label').remove();
   if (lastNodeSel) {
     lastNodeSel.select('circle').attr('fill-opacity', 0.85).attr('stroke', 'rgba(255,255,255,0.2)').attr('stroke-width', 1.5);
     lastNodeSel.select('text').attr('fill-opacity', 1);
