@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport"
+<script>
+/* 인앱 브라우저(카카오/네이버 등) → 외부 브라우저 자동 전환 */
+(function(){try{var ua=(navigator.userAgent||'').toLowerCase(),href=location.href;
+if(sessionStorage.getItem('_esc'))return;
+if(ua.indexOf('kakaotalk')!==-1){sessionStorage.setItem('_esc','1');location.href='kakaotalk://web/openExternal?url='+encodeURIComponent(href);return;}
+if(/(naver|line|fbav|fban|instagram|daumapps|everytimeapp|trill)/.test(ua)&&/android/i.test(ua)){sessionStorage.setItem('_esc','1');location.href='intent://'+href.replace(/^https?:\/\/,'')+'#Intent;scheme=https;package=com.android.chrome;end';}
+}catch(e){}})();
+</script> content="width=device-width, initial-scale=1.0">
 <title>mAb Stability — Causal Relationship Network</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
